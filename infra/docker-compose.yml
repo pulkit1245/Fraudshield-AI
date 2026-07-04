@@ -1,0 +1,134 @@
+# FraudShield AI — local development stack.
+# From repo root:  docker compose -f infra/docker-compose.yml up --build
+#
+# Brings up Postgres+pgvector, RabbitMQ, Redis, the FastAPI backend, the two
+# Celery worker fleets (static + dynamic), and the Vite frontend.
+name: fraudshield
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_USER: fraudshield
+      POSTGRES_PASSWORD: fraudshield
+      POSTGRES_DB: fraudshield
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraudshield"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker-static:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -Q static_queue -l info
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    depends_on:
+      backend: { condition: service_started }
+
+  worker-dynamic:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -Q dynamic_queue -c 1 -l info
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+      SANDBOX_MODE: simulate
+    depends_on:
+      backend: { condition: service_started }
+
+  beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app beat -l info
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    depends_on:
+      backend: { condition: service_started }
+
+  flower:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app flower --port=5555
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    ports:
+      - "5555:5555"
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      backend: { condition: service_started }
+
+volumes:
+  pgdata:

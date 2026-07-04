@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudShield AI — Software Architecture &amp; Team Build Plan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f4f0;
+    color: #1a1a1a;
+    padding: 40px 24px 80px;
+    line-height: 1.6;
+  }
+
+  .page-header { max-width: 900px; margin: 0 auto 12px; }
+  .page-title { font-size: 27px; font-weight: 800; color: #111; margin-bottom: 6px; }
+  .page-subtitle { font-size: 14px; color: #666; }
+
+  .toc-box {
+    max-width: 900px; margin: 20px auto 40px; background: #fff;
+    border: 1px solid #e8e6e1; border-radius: 14px; padding: 22px 28px;
+  }
+  .toc-title { font-size: 13px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 13px; }
+  .toc-grid a { color: #4a3db5; text-decoration: none; }
+  .toc-grid a:hover { text-decoration: underline; }
+
+  .member-section { max-width: 900px; margin: 0 auto 56px; }
+  .doc-section { max-width: 900px; margin: 0 auto 56px; }
+  .doc-section-title {
+    font-size: 21px; font-weight: 800; margin-bottom: 18px; color: #111;
+    padding-bottom: 10px; border-bottom: 2px solid #e2e0da;
+  }
+  .doc-section-title span.tag { font-size: 12px; font-weight: 600; color: #999; margin-left: 10px; }
+  .subsection-title { font-size: 15px; font-weight: 700; margin: 26px 0 10px; color: #222; }
+  .subsection-title:first-child { margin-top: 0; }
+  .body-text { font-size: 14px; color: #333; margin-bottom: 12px; }
+  .body-text b { color: #111; }
+
+  .member-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .member-badge { font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 20px; white-space: nowrap; }
+
+  .m1-badge { background: #e8e4fd; color: #4a3db5; }
+  .m2-badge { background: #d8f3e8; color: #1a6b45; }
+  .m3-badge { background: #fdecd8; color: #8a4a10; }
+  .m4-badge { background: #d8eafd; color: #1a4a8a; }
+
+  .branch-badge {
+    font-size: 13px; color: #555; font-family: 'SF Mono', 'Fira Code', monospace;
+    background: #ebebeb; padding: 4px 12px; border-radius: 6px;
+  }
+
+  .task-card { background: #fff; border-radius: 14px; padding: 28px 32px; margin-bottom: 14px; border: 1px solid #e8e6e1; }
+  .task-title { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+  .m1-title { color: #4a3db5; } .m2-title { color: #1a6b45; } .m3-title { color: #8a4a10; } .m4-title { color: #1a4a8a; }
+
+  .task-items { list-style: none; padding: 0; }
+  .task-items li { position: relative; padding: 10px 0 10px 20px; font-size: 14px; color: #2a2a2a; border-bottom: 1px solid #f0eeea; line-height: 1.65; }
+  .task-items li:last-child { border-bottom: none; padding-bottom: 0; }
+  .task-items li::before { content: ''; position: absolute; left: 0; top: 18px; width: 5px; height: 5px; border-radius: 50%; }
+  .m1-bullet::before { background: #6e5ee0; } .m2-bullet::before { background: #2a9e65; }
+  .m3-bullet::before { background: #c0672a; } .m4-bullet::before { background: #2a65c0; }
+
+  .left-accent { border-left: 3px solid; padding-left: 16px; margin-left: 0; }
+  .m1-accent { border-left-color: #6e5ee0; } .m2-accent { border-left-color: #2a9e65; }
+  .m3-accent { border-left-color: #c0672a; } .m4-accent { border-left-color: #2a65c0; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px;
+    background: #f0eefb; color: #4a3db5; padding: 2px 7px; border-radius: 5px; border: 1px solid #ddd9f7;
+  }
+  .m2-code code { background: #e6f7ee; color: #1a6b45; border-color: #b8e8cf; }
+  .m3-code code { background: #fdf1e6; color: #8a4a10; border-color: #f5d5ae; }
+  .m4-code code { background: #e6f0fd; color: #1a4a8a; border-color: #aecbf5; }
+
+  .push-card { background: #fff; border-radius: 14px; padding: 24px 32px; margin-bottom: 14px; border: 1px solid #e8e6e1; }
+  .push-title { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 14px; }
+  .file-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .file-chip { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; padding: 5px 11px; border-radius: 6px; border: 1px solid; }
+  .m1-chip { background: #f0eefb; color: #3a2da0; border-color: #ccc8f0; }
+  .m2-chip { background: #e6f7ee; color: #145a35; border-color: #9ed8b8; }
+  .m3-chip { background: #fdf1e6; color: #7a3d08; border-color: #f0c898; }
+  .m4-chip { background: #e6f0fd; color: #103a7a; border-color: #98baf0; }
+
+  .divider { max-width: 900px; margin: 0 auto 40px; border: none; border-top: 1px solid #ddd; }
+
+  .note-box {
+    background: #fffbf0; border: 1px solid #f0d890; border-radius: 10px; padding: 14px 18px; font-size: 13px;
+    color: #7a5a00; margin-bottom: 16px; max-width: 900px; margin-left: auto; margin-right: auto;
+  }
+
+  .diagram-box {
+    background: #1c1c28; color: #d7d6e8; font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 12px; padding: 22px 24px; border-radius: 12px; overflow-x: auto; white-space: pre;
+    line-height: 1.55; margin-bottom: 18px;
+  }
+
+  .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; background: #fff; border-radius: 10px; overflow: hidden; }
+  .info-table th { background: #f0eefb; color: #3a2da0; text-align: left; padding: 9px 14px; border: 1px solid #ddd9f7; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  .info-table td { padding: 9px 14px; border: 1px solid #ececec; vertical-align: top; color: #2a2a2a; }
+  .info-table tr:nth-child(even) td { background: #fafaf8; }
+
+  .api-method { font-family: 'SF Mono', monospace; font-weight: 700; padding: 2px 9px; border-radius: 4px; font-size: 11px; display: inline-block; }
+  .method-get { background: #d8eafd; color: #1a4a8a; } .method-post { background: #d8f3e8; color: #1a6b45; }
+  .method-put { background: #fdecd8; color: #8a4a10; } .method-delete { background: #fdd8d8; color: #9a1a1a; }
+  .method-patch { background: #efd8fd; color: #6a1a8a; }
+
+  .api-card { background: #fff; border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; border: 1px solid #e8e6e1; }
+  .api-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .api-url { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 600; color: #222; }
+  .api-desc { font-size: 13px; color: #555; margin-bottom: 8px; }
+  .api-meta { font-size: 12px; color: #777; }
+  .api-meta b { color: #444; }
+
+  .module-card { background: #fff; border-radius: 12px; padding: 20px 24px; margin-bottom: 12px; border: 1px solid #e8e6e1; }
+  .module-title { font-size: 14.5px; font-weight: 700; color: #111; margin-bottom: 6px; }
+  .module-owner { font-size: 12px; color: #888; margin-bottom: 10px; }
+  .submodule { margin-top: 10px; }
+  .submodule-title { font-size: 13px; font-weight: 700; color: #444; margin-bottom: 4px; }
+  .submodule ul { list-style: none; padding-left: 0; }
+  .submodule li { font-size: 13px; color: #333; padding: 4px 0 4px 16px; position: relative; }
+  .submodule li::before { content: '–'; position: absolute; left: 0; color: #aaa; }
+
+  .who-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+  .who-label { color: #888; font-weight: 600; }
+  .who-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; }
+  .who-a { background: #e8e4fd; color: #4a3db5; } .who-b { background: #d8f3e8; color: #1a6b45; }
+  .who-c { background: #fdecd8; color: #8a4a10; } .who-d { background: #d8eafd; color: #1a4a8a; }
+  .who-all { background: #eee; color: #555; }
+
+  .int-task-card { background: #fff; border-radius: 14px; padding: 24px 30px; margin-bottom: 14px; border: 1px solid #e8e6e1; }
+  .int-task-title { font-size: 15px; font-weight: 700; color: #222; margin-bottom: 12px; }
+  .int-items { list-style: none; padding: 0; }
+  .int-items li { padding: 9px 0; font-size: 13.5px; color: #2a2a2a; line-height: 1.65; }
+  .int-accent { border-left: 3px solid #999; padding-left: 16px; }
+  .int-code { font-family: 'SF Mono', monospace; font-size: 12px; background: #f2f2f2; color: #333; padding: 2px 7px; border-radius: 5px; border: 1px solid #e2e2e2; }
+
+  .checkpoint-card { background: #eef7f0; border: 1px solid #b8e0c0; border-radius: 14px; padding: 22px 28px; margin-bottom: 20px; }
+  .checkpoint-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  .checkpoint-time { font-size: 12px; font-weight: 700; color: #1a6b45; background: #cdeed7; padding: 4px 12px; border-radius: 20px; }
+  .checkpoint-title { font-size: 14.5px; font-weight: 700; color: #14532d; }
+  .checklist { list-style: none; padding: 0; }
+  .checklist li { font-size: 13.5px; color: #1e3a2a; padding: 6px 0 6px 26px; position: relative; }
+  .check-box { position: absolute; left: 0; top: 8px; width: 14px; height: 14px; border: 2px solid #1a6b45; border-radius: 4px; display: inline-block; }
+
+  .submit-card { background: #1c1c1c; border-radius: 14px; padding: 26px 30px; margin-bottom: 14px; }
+  .submit-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 14px; }
+  .submit-items li { color: #d0d0d0 !important; }
+
+  .verify-card { background: #f0fdf4; border: 1px solid #86efac; border-radius: 14px; padding: 24px 30px; margin-bottom: 14px; }
+  .verify-title { font-size: 15px; font-weight: 700; color: #14532d; margin-bottom: 12px; }
+
+  .stack-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .env-var-table td:first-child, .env-var-table th:first-child { font-family: monospace; font-size: 12px; }
+
+  @media (max-width: 640px) {
+    .toc-grid { grid-template-columns: 1fr; }
+    .task-card, .int-task-card, .push-card, .module-card { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="page-title">FraudShield AI — Software Architecture &amp; Team Build Plan</div>
+  <div class="page-subtitle">CyberShield Hackathon · GenAI-Based Automated Analysis &amp; Risk Scoring of Fraudulent APKs · 4-member team · 48-hour execution plan</div>
+</div>
+
+<div class="toc-box">
+  <div class="toc-title">Table of Contents</div>
+  <div class="toc-grid">
+    <a href="#arch">1. High-Level Architecture</a>
+    <a href="#stack">2. Technology Stack</a>
+    <a href="#folders">3. Folder Structure</a>
+    <a href="#db">4. Database Design</a>
+    <a href="#api">5. API Architecture</a>
+    <a href="#components">6. Component &amp; Data Flow</a>
+    <a href="#modules">7. Modules &amp; Submodules</a>
+    <a href="#members">8. Team Division (4 Members)</a>
+    <a href="#git">9. Git Workflow</a>
+    <a href="#integration">10. Integration Plan</a>
+    <a href="#checkpoints">11. Checkpoints</a>
+    <a href="#testing">12. Testing Plan</a>
+    <a href="#deployment">13. Deployment</a>
+    <a href="#checklist">14. Final Submission Checklist</a>
+  </div>
+</div>
+
+<div class="note-box">
+  ⚠ Member D sets up the GitHub repo, <code>docker-compose.yml</code>, and <code>shared/API_CONTRACTS.md</code> in the first 2 hours. No one writes feature code until the repo skeleton, folder structure, and JSON schemas are committed to <code>main</code>.
+</div>
+
+<!-- ═══════════════════════════════════════════════ 1. HIGH-LEVEL ARCHITECTURE ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="arch">
+  <div class="doc-section-title">1. High-Level Architecture</div>
+
+  <div class="body-text">FraudShield AI is a layered, queue-driven system. An analyst uploads a suspicious APK through the React dashboard; the FastAPI backend persists the file, computes its SHA-256, and enqueues a static-analysis job. Static extraction (Androguard/Apktool/JADX) and dynamic sandboxing (Frida-instrumented emulator) run as parallel Celery workers behind RabbitMQ, so a slow sandbox run never blocks the faster static path. Every extracted string that will reach the LLM first passes through a dedicated <b>adversarial-sanitization layer</b> — the model producing the final verdict is never the first system to see untrusted, attacker-authored content. Findings are aggregated, scored by an ensemble (rules + XGBoost classifier + Claude API reasoning), and rendered as a plain-English report an L1 analyst can act on without reading decompiled code.</div>
+
+  <div class="diagram-box">┌──────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT LAYER                                 │
+│   React Dashboard (Vercel) — Upload · Queue · Report Viewer · Chat        │
+└───────────────────────────────┬────────────────────────────────────────-─┘
+                                 │ HTTPS / JWT (Bearer)
+┌───────────────────────────────▼────────────────────────────────────────-─┐
+│                         API GATEWAY / BACKEND                             │
+│   FastAPI (Railway/Render) — Auth · Submissions · Verdicts · Chat · WS     │
+└───────┬──────────────────────┬───────────────────────┬──────────────────-┘
+        │ enqueue               │ enqueue                │ read/write
+┌───────▼────────┐    ┌─────────▼─────────┐    ┌─────────▼──────────────────┐
+│ CELERY WORKERS  │    │ CELERY WORKERS    │    │  PostgreSQL + pgvector     │
+│ Static Analysis  │    │ Dynamic Sandbox    │    │  (metadata, findings,     │
+│ Androguard/Apktool│   │ Frida + AVD, fake- │    │   verdicts, embeddings)   │
+│ JADX             │    │ DNS, zero egress   │    │                            │
+└───────┬─────────┘    └─────────┬──────────┘    │  Object Storage (S3-compat)│
+        │                        │                │  raw APKs + artifacts      │
+        └───────────┬────────────┘                └────────────────────────────┘
+                     │ aggregated findings
+        ┌────────────▼─────────────┐
+        │  SANITIZATION LAYER        │  ← screens every extracted string
+        │  (strips/flags prompt-     │     before it reaches the LLM
+        │   injection attempts)      │
+        └────────────┬─────────────┘
+                     │
+        ┌────────────▼─────────────┐        ┌───────────────────────────┐
+        │  ML SCORING ENSEMBLE       │        │   EXTERNAL SERVICES        │
+        │  XGBoost/RF classifier     │        │   Claude API (agentic)     │
+        │  Autoencoder (novelty)     │◄──────►│   VirusTotal API           │
+        │  SHAP explainability       │        └───────────────────────────┘
+        └────────────┬─────────────┘
+                     │
+        ┌────────────▼─────────────┐
+        │  RISK VERDICT + REPORT     │  → 0–100 score, severity band,
+        │  Campaign clustering       │     recommended action, TTP map
+        └───────────────────────────┘</div>
+
+  <div class="subsection-title">Authentication Flow</div>
+  <div class="body-text">Analysts register/login via <code>/api/v1/auth</code>. The backend issues a short-lived JWT access token (15 min) plus a rotating refresh token (7 days), both signed with an HS256 secret stored in environment variables. The React app stores the access token in memory (not localStorage) and the refresh token in an HttpOnly cookie. Every protected FastAPI route depends on an <code>get_current_user</code> dependency that validates the JWT and role (analyst / lead / admin).</div>
+
+  <div class="subsection-title">Security</div>
+  <div class="body-text">Uploaded APKs are treated as hostile input end-to-end: stored in an isolated object-storage bucket with no execute permissions, hashed on arrival, and never executed outside the sandboxed emulator with zero real network egress. Role-based access control gates the verdict-override and escalate endpoints to <code>lead</code>/<code>admin</code> roles. All LLM prompts pass through the sanitization layer, and any detected prompt-injection attempt is logged to <code>audit_logs</code> and surfaced in the final report.</div>
+
+  <div class="subsection-title">Caching, Error Handling &amp; Logging</div>
+  <div class="body-text">Redis caches dashboard aggregate stats (60s TTL) and VirusTotal hash lookups (24h TTL) to reduce external-API cost. All FastAPI routes return a standard error envelope (<code>{"error": {"code","message","request_id"}}</code>) via a shared exception-handler middleware. Structured JSON logs (via <code>structlog</code>) are shipped to stdout and collected by the hosting platform's log stream; each request is tagged with a <code>request_id</code> for tracing across the static → dynamic → LLM → scoring pipeline.</div>
+
+  <div class="subsection-title">Monitoring &amp; Deployment</div>
+  <div class="body-text">The backend, worker fleet, frontend, and Postgres/RabbitMQ are deployed as separate services (see §13 Deployment) with independent scaling. A <code>/health</code> endpoint on the API and a Celery <code>flower</code> dashboard on the worker fleet give at-a-glance liveness; Railway/Render built-in metrics cover CPU/memory, with Sentry wired into both FastAPI and React for error tracking.</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 2. TECH STACK ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="stack">
+  <div class="doc-section-title">2. Technology Stack</div>
+  <table class="info-table">
+    <tr><th>Layer</th><th>Technology</th><th>Notes</th></tr>
+    <tr><td>Frontend</td><td>React 18 + TypeScript, Vite, Recharts, D3 (Sankey/heatmap), TanStack Query, Tailwind CSS</td><td>Deployed on Vercel</td></tr>
+    <tr><td>Backend</td><td>Python 3.11, FastAPI, Pydantic v2, Uvicorn/Gunicorn</td><td>Deployed on Railway</td></tr>
+    <tr><td>Async Jobs</td><td>Celery, RabbitMQ (broker), Redis (result backend + cache)</td><td>Separate worker service</td></tr>
+    <tr><td>Static Analysis</td><td>Androguard, Apktool, JADX</td><td>Invoked as subprocess/library calls from Celery tasks</td></tr>
+    <tr><td>Dynamic Analysis</td><td>Android Virtual Device (AVD)/Genymotion, Frida instrumentation, isolated fake-DNS network</td><td>Zero real network egress</td></tr>
+    <tr><td>LLM Orchestration</td><td>Claude API (agentic tool-use loop), retrieval over a fraud-TTP knowledge base</td><td>Tiered: fast model for triage, escalate on high risk</td></tr>
+    <tr><td>ML Layer</td><td>XGBoost / Random Forest (static classifier), Autoencoder (novelty detection), SHAP (explainability)</td><td>scikit-learn, PyTorch (autoencoder)</td></tr>
+    <tr><td>Database</td><td>PostgreSQL 15 + pgvector extension</td><td>Metadata, findings, verdicts, code-chunk embeddings</td></tr>
+    <tr><td>Object Storage</td><td>S3-compatible bucket (Backblaze B2 / AWS S3)</td><td>Raw APKs, sandbox artifacts</td></tr>
+    <tr><td>Auth</td><td>JWT (HS256), bcrypt password hashing</td><td>Access + refresh token pair</td></tr>
+    <tr><td>Cloud / Hosting</td><td>Railway (API + workers + Postgres + RabbitMQ), Vercel (frontend)</td><td></td></tr>
+    <tr><td>Integrations</td><td>VirusTotal API (hash cross-checks)</td><td></td></tr>
+    <tr><td>Testing</td><td>Pytest + httpx (backend), Vitest + React Testing Library (frontend), Locust (load)</td><td></td></tr>
+    <tr><td>CI/CD</td><td>GitHub Actions (lint, test, build, deploy on merge to main)</td><td></td></tr>
+    <tr><td>Monitoring</td><td>Sentry (errors), Flower (Celery), Railway/Vercel built-in metrics</td><td></td></tr>
+  </table>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 3. FOLDER STRUCTURE ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="folders">
+  <div class="doc-section-title">3. Folder Structure</div>
+  <div class="diagram-box">fraudshield-ai/
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   ├── security.py
+│   │   │   └── logging.py
+│   │   ├── api/v1/
+│   │   │   ├── auth.py
+│   │   │   ├── submissions.py
+│   │   │   ├── analysis.py
+│   │   │   ├── verdicts.py
+│   │   │   ├── clusters.py
+│   │   │   ├── chat.py
+│   │   │   ├── virustotal.py
+│   │   │   └── dashboard.py
+│   │   ├── services/
+│   │   │   ├── static_analysis_service.py
+│   │   │   ├── dynamic_analysis_service.py
+│   │   │   ├── llm_orchestration_service.py
+│   │   │   ├── sanitization_service.py
+│   │   │   ├── scoring_service.py
+│   │   │   ├── clustering_service.py
+│   │   │   └── virustotal_service.py
+│   │   ├── repositories/
+│   │   │   ├── submission_repository.py
+│   │   │   ├── user_repository.py
+│   │   │   ├── verdict_repository.py
+│   │   │   └── cluster_repository.py
+│   │   ├── models/           # SQLAlchemy ORM
+│   │   │   ├── user.py
+│   │   │   ├── submission.py
+│   │   │   ├── static_finding.py
+│   │   │   ├── dynamic_finding.py
+│   │   │   ├── ml_score.py
+│   │   │   ├── llm_report.py
+│   │   │   ├── verdict.py
+│   │   │   ├── cluster.py
+│   │   │   └── audit_log.py
+│   │   ├── schemas/          # Pydantic request/response
+│   │   │   ├── auth_schema.py
+│   │   │   ├── submission_schema.py
+│   │   │   ├── verdict_schema.py
+│   │   │   └── cluster_schema.py
+│   │   ├── workers/
+│   │   │   ├── celery_app.py
+│   │   │   └── tasks/
+│   │   │       ├── static_task.py
+│   │   │       ├── dynamic_task.py
+│   │   │       ├── llm_task.py
+│   │   │       └── scoring_task.py
+│   │   ├── ml/
+│   │   │   ├── classifier/{train.py, infer.py, model.pkl}
+│   │   │   ├── novelty/autoencoder.py
+│   │   │   └── explainability/shap_utils.py
+│   │   ├── static_analysis/
+│   │   │   ├── androguard_wrapper.py
+│   │   │   ├── apktool_wrapper.py
+│   │   │   ├── jadx_wrapper.py
+│   │   │   └── permission_extractor.py
+│   │   ├── dynamic_analysis/
+│   │   │   ├── sandbox_manager.py
+│   │   │   ├── frida_hooks.py
+│   │   │   ├── network_capture.py
+│   │   │   └── emulator_pool.py
+│   │   ├── llm/
+│   │   │   ├── claude_client.py
+│   │   │   ├── prompts/{ttp_mapping_prompt.py, report_prompt.py, sanitization_prompt.py}
+│   │   │   └── rag/{knowledge_base.py, embeddings.py}
+│   │   ├── utils/{hashing.py, file_storage.py, validators.py}
+│   │   ├── middlewares/{auth_middleware.py, error_handler.py, rate_limiter.py}
+│   │   └── tests/
+│   ├── alembic/versions/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/{Dashboard, SubmissionQueue, ReportViewer, RiskHeatmap, SankeyDiagram, ChatPanel, ClusterExplorer, Navbar, Sidebar}/
+│   │   ├── pages/{LoginPage.tsx, DashboardPage.tsx, SubmissionDetailPage.tsx, ClustersPage.tsx, SettingsPage.tsx}
+│   │   ├── services/{api.ts, auth.ts, submissions.ts, websocket.ts}
+│   │   ├── hooks/{useSubmissions.ts, useAuth.ts, usePolling.ts}
+│   │   ├── context/AuthContext.tsx
+│   │   ├── types/
+│   │   └── utils/
+│   ├── tests/
+│   └── Dockerfile
+├── shared/
+│   ├── schemas/               # JSON contracts (source of truth)
+│   └── API_CONTRACTS.md
+├── infra/
+│   ├── docker-compose.yml
+│   └── .github/workflows/{ci.yml, cd.yml}
+├── docs/
+│   ├── architecture.md
+│   └── README.md
+└── .env.example</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 4. DATABASE DESIGN ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="db">
+  <div class="doc-section-title">4. Database Design</div>
+  <div class="body-text">PostgreSQL 15 with the <code>pgvector</code> extension enabled for code-chunk embeddings used in the fraud-TTP retrieval step. All primary keys are UUIDv4 unless noted.</div>
+
+  <div class="subsection-title">users</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK, default gen_random_uuid()</td></tr>
+    <tr><td>email</td><td>VARCHAR(255)</td><td>UNIQUE, NOT NULL</td></tr>
+    <tr><td>password_hash</td><td>VARCHAR(255)</td><td>NOT NULL (bcrypt)</td></tr>
+    <tr><td>role</td><td>VARCHAR(20)</td><td>NOT NULL, CHECK IN ('analyst','lead','admin'), default 'analyst'</td></tr>
+    <tr><td>org_name</td><td>VARCHAR(255)</td><td>NOT NULL — bank/NBFC name</td></tr>
+    <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>NOT NULL, default now()</td></tr>
+  </table>
+
+  <div class="subsection-title">apk_submissions</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>uploaded_by</td><td>UUID</td><td>FK → users.id, NOT NULL</td></tr>
+    <tr><td>original_filename</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+    <tr><td>sha256_hash</td><td>CHAR(64)</td><td>NOT NULL, INDEX</td></tr>
+    <tr><td>storage_path</td><td>TEXT</td><td>NOT NULL — object-storage key</td></tr>
+    <tr><td>status</td><td>VARCHAR(20)</td><td>NOT NULL, CHECK IN ('queued','static_running','dynamic_running','scoring','completed','failed'), default 'queued'</td></tr>
+    <tr><td>submitted_at</td><td>TIMESTAMPTZ</td><td>NOT NULL, default now()</td></tr>
+    <tr><td>completed_at</td><td>TIMESTAMPTZ</td><td>NULLABLE</td></tr>
+  </table>
+
+  <div class="subsection-title">static_findings</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, UNIQUE, NOT NULL</td></tr>
+    <tr><td>package_name</td><td>VARCHAR(255)</td><td></td></tr>
+    <tr><td>permissions</td><td>JSONB</td><td>NOT NULL — declared + used permissions</td></tr>
+    <tr><td>certificate_info</td><td>JSONB</td><td>signer, validity, self-signed flag</td></tr>
+    <tr><td>api_call_graph</td><td>JSONB</td><td>sensitive API-call summary from Androguard</td></tr>
+    <tr><td>obfuscation_score</td><td>FLOAT</td><td>0–1, heuristic from Apktool/JADX diffs</td></tr>
+    <tr><td>extracted_at</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+  </table>
+
+  <div class="subsection-title">dynamic_findings</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, UNIQUE, NOT NULL</td></tr>
+    <tr><td>sms_access</td><td>BOOLEAN</td><td>default false</td></tr>
+    <tr><td>accessibility_abuse</td><td>BOOLEAN</td><td>default false</td></tr>
+    <tr><td>overlay_detected</td><td>BOOLEAN</td><td>default false</td></tr>
+    <tr><td>network_calls</td><td>JSONB</td><td>captured against fake-DNS sink</td></tr>
+    <tr><td>sandbox_log_path</td><td>TEXT</td><td>object-storage key for full Frida log</td></tr>
+    <tr><td>run_at</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+  </table>
+
+  <div class="subsection-title">ml_scores</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, UNIQUE, NOT NULL</td></tr>
+    <tr><td>classifier_score</td><td>FLOAT</td><td>0–1, XGBoost/RF output</td></tr>
+    <tr><td>novelty_score</td><td>FLOAT</td><td>0–1, autoencoder reconstruction error (normalized)</td></tr>
+    <tr><td>shap_values</td><td>JSONB</td><td>top-N feature contributions</td></tr>
+    <tr><td>model_version</td><td>VARCHAR(40)</td><td>NOT NULL</td></tr>
+  </table>
+
+  <div class="subsection-title">llm_reports</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, UNIQUE, NOT NULL</td></tr>
+    <tr><td>summary_text</td><td>TEXT</td><td>plain-English behaviour summary</td></tr>
+    <tr><td>ttp_mapping</td><td>JSONB</td><td>mapped banking-fraud TTP taxonomy entries</td></tr>
+    <tr><td>sanitization_flags</td><td>JSONB</td><td>logged prompt-injection attempts, if any</td></tr>
+    <tr><td>model_used</td><td>VARCHAR(60)</td><td>NOT NULL</td></tr>
+    <tr><td>tokens_used</td><td>INTEGER</td><td></td></tr>
+    <tr><td>generated_at</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+  </table>
+
+  <div class="subsection-title">risk_verdicts</div>
+  <table class="info-table">
+    <tr><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, UNIQUE, NOT NULL</td></tr>
+    <tr><td>final_risk_score</td><td>SMALLINT</td><td>0–100, CHECK BETWEEN 0 AND 100</td></tr>
+    <tr><td>severity_band</td><td>VARCHAR(10)</td><td>CHECK IN ('low','medium','high','critical')</td></tr>
+    <tr><td>recommended_action</td><td>VARCHAR(30)</td><td>e.g. 'monitor','block_hash','alert_customers','escalate_cert_in'</td></tr>
+    <tr><td>analyst_override_score</td><td>SMALLINT</td><td>NULLABLE</td></tr>
+    <tr><td>reviewed_by</td><td>UUID</td><td>FK → users.id, NULLABLE</td></tr>
+    <tr><td>reviewed_at</td><td>TIMESTAMPTZ</td><td>NULLABLE</td></tr>
+  </table>
+
+  <div class="subsection-title">campaign_clusters &amp; cluster_members</div>
+  <table class="info-table">
+    <tr><th>Table</th><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>campaign_clusters</td><td>id</td><td>UUID</td><td>PK</td></tr>
+    <tr><td>campaign_clusters</td><td>cluster_name</td><td>VARCHAR(120)</td><td>NOT NULL</td></tr>
+    <tr><td>campaign_clusters</td><td>family_signature</td><td>VECTOR(768)</td><td>pgvector centroid embedding</td></tr>
+    <tr><td>campaign_clusters</td><td>created_at</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+    <tr><td>cluster_members</td><td>cluster_id</td><td>UUID</td><td>FK → campaign_clusters.id, PK (composite)</td></tr>
+    <tr><td>cluster_members</td><td>submission_id</td><td>UUID</td><td>FK → apk_submissions.id, PK (composite)</td></tr>
+  </table>
+
+  <div class="subsection-title">virustotal_lookups &amp; audit_logs</div>
+  <table class="info-table">
+    <tr><th>Table</th><th>Column</th><th>Type</th><th>Constraints</th></tr>
+    <tr><td>virustotal_lookups</td><td>id / submission_id</td><td>UUID</td><td>PK / FK</td></tr>
+    <tr><td>virustotal_lookups</td><td>vt_response</td><td>JSONB</td><td>raw VT hash-check response</td></tr>
+    <tr><td>virustotal_lookups</td><td>checked_at</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+    <tr><td>audit_logs</td><td>id / user_id</td><td>UUID</td><td>PK / FK → users.id</td></tr>
+    <tr><td>audit_logs</td><td>action, target_type, target_id</td><td>VARCHAR / VARCHAR / UUID</td><td>e.g. action='verdict_override'</td></tr>
+    <tr><td>audit_logs</td><td>timestamp</td><td>TIMESTAMPTZ</td><td>default now()</td></tr>
+  </table>
+
+  <div class="subsection-title">ER Relationship Summary</div>
+  <div class="diagram-box">users (1) ──< apk_submissions (uploaded_by)
+apk_submissions (1) ──1 static_findings
+apk_submissions (1) ──1 dynamic_findings
+apk_submissions (1) ──1 ml_scores
+apk_submissions (1) ──1 llm_reports
+apk_submissions (1) ──1 risk_verdicts
+apk_submissions (1) ──1 virustotal_lookups
+apk_submissions (M) ──< cluster_members >── (M) campaign_clusters
+users (1) ──< audit_logs (user_id)
+risk_verdicts (M) ──1 users (reviewed_by)</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 5. API ARCHITECTURE ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="api">
+  <div class="doc-section-title">5. API Architecture</div>
+
+  <div class="subsection-title">Auth</div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/auth/register</span></div>
+    <div class="api-desc">Registers a new analyst account under a bank/NBFC org.</div>
+    <div class="api-meta"><b>Request:</b> {email, password, org_name} · <b>Response:</b> {id, email, role} · <b>Validation:</b> email format, password ≥ 10 chars · <b>Auth:</b> none · <b>Errors:</b> 409 email exists, 422 validation</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/auth/login</span></div>
+    <div class="api-desc">Authenticates and returns an access + refresh token pair.</div>
+    <div class="api-meta"><b>Request:</b> {email, password} · <b>Response:</b> {access_token, refresh_token, expires_in} · <b>Auth:</b> none · <b>Errors:</b> 401 invalid credentials</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/auth/refresh</span></div>
+    <div class="api-desc">Rotates a valid refresh token for a new access token.</div>
+    <div class="api-meta"><b>Request:</b> {refresh_token} · <b>Response:</b> {access_token, expires_in} · <b>Errors:</b> 401 expired/invalid</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/auth/me</span></div>
+    <div class="api-desc">Returns the authenticated analyst's profile.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT · <b>Errors:</b> 401 unauthenticated</div>
+  </div>
+
+  <div class="subsection-title">Submissions</div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/submissions</span></div>
+    <div class="api-desc">Uploads a raw APK (multipart/form-data), computes SHA-256, stores it, and enqueues static + dynamic analysis jobs.</div>
+    <div class="api-meta"><b>Request:</b> multipart file (max 200MB, .apk only) · <b>Response:</b> {id, status:"queued", sha256_hash} · <b>Validation:</b> MIME/magic-byte check for valid APK/ZIP signature · <b>Auth:</b> Bearer JWT · <b>Errors:</b> 413 too large, 415 invalid file type</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions</span></div>
+    <div class="api-desc">Paginated queue listing with filters (status, severity, date range).</div>
+    <div class="api-meta"><b>Response:</b> {items:[...], total, page} · <b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}</span></div>
+    <div class="api-desc">Full submission detail: static + dynamic findings, ML scores, LLM report, verdict.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT · <b>Errors:</b> 404 not found</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/status</span></div>
+    <div class="api-desc">Lightweight polling endpoint for pipeline stage (used by the frontend queue view every 3s until completed).</div>
+    <div class="api-meta"><b>Response:</b> {status, progress_pct} · <b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-delete">DELETE</span><span class="api-url">/api/v1/submissions/{id}</span></div>
+    <div class="api-desc">Soft-deletes a submission (compliance retention rules apply; raw APK purged after 90 days regardless).</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT, role lead/admin · <b>Errors:</b> 403 insufficient role</div>
+  </div>
+
+  <div class="subsection-title">Analysis Pipeline (internal + read)</div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/static-findings</span></div>
+    <div class="api-desc">Returns permissions, certificate info, API-call graph, obfuscation score.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/dynamic-findings</span></div>
+    <div class="api-desc">Returns sandbox behaviour: SMS access, accessibility abuse, overlay detection, captured network calls.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/ml-score</span></div>
+    <div class="api-desc">Returns classifier score, novelty score, and top SHAP feature contributions.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/report</span></div>
+    <div class="api-desc">Returns the full rendered LLM report (summary, TTP mapping, sanitization flags) for export/print.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+
+  <div class="subsection-title">Verdicts</div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/verdict</span></div>
+    <div class="api-desc">Returns the calibrated 0–100 risk score, severity band, and recommended action.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-patch">PATCH</span><span class="api-url">/api/v1/submissions/{id}/verdict/override</span></div>
+    <div class="api-desc">Allows a lead analyst to override the model's score with a human judgement, logged to audit_logs.</div>
+    <div class="api-meta"><b>Request:</b> {override_score, reason} · <b>Auth:</b> Bearer JWT, role lead/admin · <b>Errors:</b> 403 insufficient role</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/submissions/{id}/verdict/escalate</span></div>
+    <div class="api-desc">Marks a submission for CERT-In/NPCI escalation and generates a structured IOC record.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT, role lead/admin</div>
+  </div>
+
+  <div class="subsection-title">Clusters, Chat &amp; VirusTotal</div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/clusters</span></div>
+    <div class="api-desc">Lists campaign clusters with member counts, used to build the Sankey/heatmap views.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-post">POST</span><span class="api-url">/api/v1/submissions/{id}/chat</span></div>
+    <div class="api-desc">"Chat with the APK" — analyst asks a natural-language question about the sample; answered against the sanitized findings + retrieved TTP context, never against raw untrusted strings directly.</div>
+    <div class="api-meta"><b>Request:</b> {message} · <b>Response:</b> {reply, sources} · <b>Auth:</b> Bearer JWT · <b>Errors:</b> 429 rate-limited (Claude API tier cap)</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/submissions/{id}/virustotal</span></div>
+    <div class="api-desc">Cross-checks the SHA-256 against VirusTotal; cached 24h in Redis to conserve quota.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+  <div class="api-card">
+    <div class="api-card-head"><span class="api-method method-get">GET</span><span class="api-url">/api/v1/dashboard/stats</span></div>
+    <div class="api-desc">Aggregate counts by severity band, queue depth, and average triage time, cached 60s.</div>
+    <div class="api-meta"><b>Auth:</b> Bearer JWT</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 6. COMPONENT / DATA FLOW ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="components">
+  <div class="doc-section-title">6. Component Architecture, Sequence &amp; Data Flow</div>
+
+  <div class="subsection-title">Sequence Diagram — single APK submission</div>
+  <div class="diagram-box">Analyst        Frontend        Backend API      RabbitMQ     Static Worker   Dynamic Worker   Sanitizer   ML Ensemble   Claude API   Postgres
+  │  upload APK    │                │               │               │               │             │             │            │
+  │───────────────>│  POST /submissions             │               │               │             │             │            │
+  │                │───────────────>│  hash, store, enqueue          │               │             │             │            │
+  │                │                │──────────────>│  static.job    │               │             │             │            │
+  │                │                │──────────────────────────────>│  dynamic.job (parallel)      │             │            │
+  │                │                │               │               │──────────────>│             │             │            │
+  │                │  poll /status  │                │               │  findings     │  findings   │             │            │
+  │<──────────────>│<──────────────>│                │               │──────────────>│  aggregate  │             │            │
+  │                │                │                │               │               │────────────>│  sanitize   │            │
+  │                │                │                │               │               │             │────────────>│  score      │
+  │                │                │                │               │               │             │             │───────────>│ generate report
+  │                │                │                │               │               │             │             │            │───────────>│ persist
+  │                │  GET /report   │                │               │               │             │             │            │            │
+  │<──────────────│<───────────────│  render verdict, TTP map, action │               │             │             │            │            │</div>
+
+  <div class="subsection-title">Data Flow Diagram</div>
+  <div class="diagram-box">APK bytes → SHA-256 hash → Object Storage
+                       │
+                       ├─→ Androguard/Apktool/JADX → permissions, cert, API calls, obfuscation → static_findings
+                       │
+                       └─→ Frida-instrumented AVD (isolated network) → SMS/accessibility/overlay flags, network calls → dynamic_findings
+
+static_findings + dynamic_findings
+        │
+        ▼
+Sanitization layer (strip/flag prompt-injection strings)
+        │
+        ├─→ XGBoost/RF classifier ──┐
+        ├─→ Autoencoder (novelty) ──┼──→ ml_scores (+ SHAP)
+        │                            │
+        └─→ Claude API (agentic loop, RAG over TTP KB) ──→ llm_reports
+                        │
+                        ▼
+        Scoring ensemble (rules + classifier + LLM) ──→ risk_verdicts
+                        │
+                        ▼
+        Campaign clustering (pgvector similarity) ──→ campaign_clusters</div>
+
+  <div class="subsection-title">User Flow</div>
+  <div class="body-text">1) Analyst logs in → 2) lands on Dashboard showing queue + severity heatmap → 3) uploads a suspicious APK or selects a pending one → 4) watches live pipeline status (queued → static → dynamic → scoring → completed) → 5) opens the Report view: plain-English summary, risk gauge, TTP mapping, Sankey of the causal behaviour chain → 6) optionally chats with the APK for follow-up questions → 7) accepts, overrides, or escalates the verdict → 8) action is logged to audit_logs and reflected on the dashboard.</div>
+
+  <div class="subsection-title">Module Dependency Flow</div>
+  <div class="diagram-box">Auth Module ──> Submissions Module ──> Static Analysis Module ──┐
+                                    └────────────────> Dynamic Analysis Module ──┤
+                                                                                    ├──> Sanitization Module ──> ML Scoring Module ──> LLM Reporting Module ──> Verdict Module ──> Clustering Module ──> Dashboard Module</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 7. MODULES ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="modules">
+  <div class="doc-section-title">7. Modules &amp; Submodules</div>
+
+  <div class="module-card">
+    <div class="module-title">Authentication &amp; User Management</div>
+    <div class="module-owner">Owner: Member A</div>
+    <div class="submodule"><div class="submodule-title">Registration &amp; Login</div><ul><li>Email/password registration with bcrypt hashing</li><li>JWT access + refresh token issuance</li><li>Role assignment (analyst/lead/admin)</li></ul></div>
+    <div class="submodule"><div class="submodule-title">Session Management</div><ul><li>Refresh-token rotation endpoint</li><li>Auth middleware / dependency injection guard</li><li>Rate limiting on login attempts</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Submission Intake</div>
+    <div class="module-owner">Owner: Member A</div>
+    <div class="submodule"><div class="submodule-title">Upload &amp; Validation</div><ul><li>Multipart file upload, magic-byte APK validation</li><li>SHA-256 hashing, object-storage persistence</li><li>Queue enqueue (static + dynamic jobs)</li></ul></div>
+    <div class="submodule"><div class="submodule-title">Queue &amp; Status</div><ul><li>Paginated listing with filters</li><li>Status polling endpoint</li><li>Soft-delete with retention policy</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Static Analysis</div>
+    <div class="module-owner">Owner: Member A</div>
+    <div class="submodule"><div class="submodule-title">Extraction</div><ul><li>Androguard permission/API-call extraction</li><li>Apktool/JADX decompilation for obfuscation scoring</li><li>Certificate/signer inspection</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Dynamic Sandbox</div>
+    <div class="module-owner">Owner: Member C</div>
+    <div class="submodule"><div class="submodule-title">Sandbox Orchestration</div><ul><li>AVD/Genymotion pool management</li><li>Frida hook injection (SMS, accessibility, overlay APIs)</li><li>Isolated fake-DNS network capture</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Sanitization &amp; AI Evasion Defense</div>
+    <div class="module-owner">Owner: Member B</div>
+    <div class="submodule"><div class="submodule-title">Adversarial Screening</div><ul><li>Prompt-injection pattern detection on extracted strings</li><li>Flag-and-strip pipeline before LLM ingestion</li><li>Sanitization event logging to llm_reports.sanitization_flags</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">ML Scoring</div>
+    <div class="module-owner">Owner: Member B</div>
+    <div class="submodule"><div class="submodule-title">Classifier &amp; Novelty</div><ul><li>XGBoost/RF static-feature classifier</li><li>Autoencoder novelty/anomaly detection</li><li>SHAP explainability layer</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">LLM Orchestration &amp; Reporting</div>
+    <div class="module-owner">Owner: Member B</div>
+    <div class="submodule"><div class="submodule-title">Agentic Analysis</div><ul><li>Claude API tool-use loop over sanitized findings</li><li>RAG retrieval over banking-fraud TTP knowledge base</li><li>Plain-English report + TTP mapping generation</li><li>Chat-with-the-APK conversational endpoint</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Risk Verdict &amp; Escalation</div>
+    <div class="module-owner">Owner: Member A</div>
+    <div class="submodule"><div class="submodule-title">Scoring Ensemble</div><ul><li>Rules + classifier + LLM weighted verdict</li><li>Severity band + recommended action mapping</li><li>Analyst override and CERT-In escalation workflow</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Campaign Clustering &amp; Threat Intel</div>
+    <div class="module-owner">Owner: Member C</div>
+    <div class="submodule"><div class="submodule-title">Similarity Clustering</div><ul><li>pgvector embedding of code chunks</li><li>Cluster assignment / centroid recompute job</li><li>VirusTotal hash cross-check integration</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">Dashboard &amp; Frontend</div>
+    <div class="module-owner">Owner: Member D</div>
+    <div class="submodule"><div class="submodule-title">Visualization</div><ul><li>Submission queue &amp; severity heatmap</li><li>Report viewer with Sankey causal chain</li><li>Cluster explorer, chat panel</li></ul></div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-title">DevOps, CI/CD &amp; Testing</div>
+    <div class="module-owner">Owner: Member D</div>
+    <div class="submodule"><div class="submodule-title">Infrastructure</div><ul><li>Docker Compose for local dev</li><li>GitHub Actions CI (lint/test/build) + CD (deploy)</li><li>Test coordination across all modules, documentation</li></ul></div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="page-header" id="members" style="margin-top:0;">
+  <div class="page-title" style="font-size:22px;">8. Team Division — 4 Members</div>
+  <div class="page-subtitle">Balanced workload, minimized cross-dependencies, maximum parallel development.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ MEMBER A ═══════════════════════════════════════════════ -->
+<div class="member-section">
+  <div class="member-header">
+    <span class="member-badge m1-badge">Member A — Backend Lead · Auth, Submissions &amp; Static Analysis</span>
+    <span class="branch-badge">Branch: feat/m1-backend-static-analysis</span>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m1-title">Task 1 — Project scaffold, auth &amp; database models</div>
+    <ul class="task-items">
+      <li class="m1-bullet left-accent m1-accent">Scaffold <code>backend/app/main.py</code> (FastAPI app factory), <code>core/config.py</code> (Pydantic Settings reading env vars: <code>DATABASE_URL</code>, <code>JWT_SECRET</code>, <code>REDIS_URL</code>, <code>RABBITMQ_URL</code>, <code>STORAGE_BUCKET</code>). Add <code>core/logging.py</code> using <code>structlog</code>.</li>
+      <li class="m1-bullet left-accent m1-accent">Write SQLAlchemy models in <code>models/user.py</code>, <code>models/submission.py</code>, <code>models/static_finding.py</code>, <code>models/audit_log.py</code> matching the §4 Database Design schema. Set up Alembic in <code>alembic/</code>, generate the initial migration.</li>
+      <li class="m1-bullet left-accent m1-accent">Implement <code>core/security.py</code>: bcrypt password hashing, JWT encode/decode (HS256, 15min access / 7day refresh), <code>get_current_user</code> FastAPI dependency with role checking.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>api/v1/auth.py</code>: <code>POST /register</code>, <code>POST /login</code>, <code>POST /refresh</code>, <code>GET /me</code>. Write <code>schemas/auth_schema.py</code> Pydantic models. Save the JSON contract to <code>shared/schemas/auth.json</code>.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>middlewares/error_handler.py</code>: global exception handler returning the standard <code>{"error":{code,message,request_id}}</code> envelope. Write <code>middlewares/rate_limiter.py</code> for login-attempt throttling (5/min per IP).</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m1-title">Task 2 — Submission intake &amp; object storage</div>
+    <ul class="task-items">
+      <li class="m1-bullet left-accent m1-accent">Write <code>utils/hashing.py</code> (SHA-256 streaming hash) and <code>utils/file_storage.py</code> (S3-compatible client wrapper: <code>upload_apk()</code>, <code>get_download_url()</code>). Write <code>utils/validators.py</code> for magic-byte APK/ZIP signature checking and 200MB size cap.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>api/v1/submissions.py</code>: <code>POST /submissions</code> (upload, hash, store, enqueue static+dynamic Celery jobs), <code>GET /submissions</code> (paginated, filterable by status/severity), <code>GET /submissions/{id}</code>, <code>GET /submissions/{id}/status</code>, <code>DELETE /submissions/{id}</code>.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>repositories/submission_repository.py</code> with CRUD + filter query methods. Write <code>schemas/submission_schema.py</code>. Save contract to <code>shared/schemas/submission.json</code>.</li>
+      <li class="m1-bullet left-accent m1-accent">Write unit tests in <code>tests/test_submissions.py</code> covering: valid APK upload, oversized file rejection (413), non-APK MIME rejection (415), duplicate-hash detection.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m1-title">Task 3 — Static analysis integration</div>
+    <ul class="task-items">
+      <li class="m1-bullet left-accent m1-accent">Write <code>static_analysis/androguard_wrapper.py</code>: loads the APK via Androguard's <code>Analysis</code> class, extracts declared+used permissions, package name, certificate/signer info, and a sensitive-API call summary (SMS, accessibility, overlay-related calls).</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>static_analysis/apktool_wrapper.py</code> and <code>jadx_wrapper.py</code>: shell out to Apktool/JADX for decompilation, and <code>permission_extractor.py</code> to compute an obfuscation heuristic score (0–1) from string-entropy and control-flow indicators.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>services/static_analysis_service.py</code> orchestrating the three wrappers and persisting to <code>static_findings</code> via the repository layer.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>workers/tasks/static_task.py</code>: a Celery task <code>run_static_analysis(submission_id)</code> that calls the service, updates <code>apk_submissions.status</code>, and triggers the next pipeline stage on completion.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m1-title">Task 4 — Risk verdict &amp; escalation endpoints</div>
+    <ul class="task-items">
+      <li class="m1-bullet left-accent m1-accent">Write <code>models/verdict.py</code> and <code>repositories/verdict_repository.py</code>. Write <code>api/v1/verdicts.py</code>: <code>GET /submissions/{id}/verdict</code>, <code>PATCH /submissions/{id}/verdict/override</code> (role-gated lead/admin, writes to <code>audit_logs</code>), <code>POST /submissions/{id}/verdict/escalate</code>.</li>
+      <li class="m1-bullet left-accent m1-accent">Write <code>api/v1/dashboard.py</code>: <code>GET /dashboard/stats</code> (aggregate counts by severity, queue depth, avg triage time — cached in Redis, 60s TTL) and <code>GET /dashboard/queue</code>.</li>
+    </ul>
+  </div>
+
+  <div class="push-card">
+    <div class="push-title">What to push to GitHub</div>
+    <div class="file-chips">
+      <span class="file-chip m1-chip">backend/app/main.py</span>
+      <span class="file-chip m1-chip">backend/app/core/config.py</span>
+      <span class="file-chip m1-chip">backend/app/core/security.py</span>
+      <span class="file-chip m1-chip">backend/app/core/logging.py</span>
+      <span class="file-chip m1-chip">backend/app/api/v1/auth.py</span>
+      <span class="file-chip m1-chip">backend/app/api/v1/submissions.py</span>
+      <span class="file-chip m1-chip">backend/app/api/v1/verdicts.py</span>
+      <span class="file-chip m1-chip">backend/app/api/v1/dashboard.py</span>
+      <span class="file-chip m1-chip">backend/app/services/static_analysis_service.py</span>
+      <span class="file-chip m1-chip">backend/app/static_analysis/androguard_wrapper.py</span>
+      <span class="file-chip m1-chip">backend/app/static_analysis/apktool_wrapper.py</span>
+      <span class="file-chip m1-chip">backend/app/static_analysis/jadx_wrapper.py</span>
+      <span class="file-chip m1-chip">backend/app/static_analysis/permission_extractor.py</span>
+      <span class="file-chip m1-chip">backend/app/models/user.py</span>
+      <span class="file-chip m1-chip">backend/app/models/submission.py</span>
+      <span class="file-chip m1-chip">backend/app/models/static_finding.py</span>
+      <span class="file-chip m1-chip">backend/app/models/verdict.py</span>
+      <span class="file-chip m1-chip">backend/app/models/audit_log.py</span>
+      <span class="file-chip m1-chip">backend/app/repositories/submission_repository.py</span>
+      <span class="file-chip m1-chip">backend/app/repositories/verdict_repository.py</span>
+      <span class="file-chip m1-chip">backend/app/workers/tasks/static_task.py</span>
+      <span class="file-chip m1-chip">backend/app/utils/hashing.py</span>
+      <span class="file-chip m1-chip">backend/app/utils/file_storage.py</span>
+      <span class="file-chip m1-chip">backend/app/utils/validators.py</span>
+      <span class="file-chip m1-chip">backend/app/middlewares/error_handler.py</span>
+      <span class="file-chip m1-chip">backend/app/middlewares/rate_limiter.py</span>
+      <span class="file-chip m1-chip">backend/alembic/versions/0001_initial.py</span>
+      <span class="file-chip m1-chip">backend/app/tests/test_submissions.py</span>
+      <span class="file-chip m1-chip">shared/schemas/auth.json</span>
+      <span class="file-chip m1-chip">shared/schemas/submission.json</span>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ MEMBER B ═══════════════════════════════════════════════ -->
+<div class="member-section">
+  <div class="member-header">
+    <span class="member-badge m2-badge">Member B — AI/ML Engineer · LLM Orchestration, Sanitization &amp; Scoring</span>
+    <span class="branch-badge">Branch: feat/m2-ai-ml-pipeline</span>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m2-title">Task 1 — Adversarial sanitization layer</div>
+    <ul class="task-items m2-code">
+      <li class="m2-bullet left-accent m2-accent">Write <code>llm/prompts/sanitization_prompt.py</code> and <code>services/sanitization_service.py</code>: screens every string extracted by static/dynamic analysis (strings, resource names, log output) for prompt-injection patterns (e.g. instruction-like phrasing embedded in app strings) before it is included in any prompt sent to the primary reasoning LLM.</li>
+      <li class="m2-bullet left-accent m2-accent">Implement a two-tier check: (1) fast regex/heuristic pass for obvious injection markers, (2) a lightweight classification call to a cheap Claude model for ambiguous cases. Flagged strings are replaced with a redaction placeholder and logged to <code>llm_reports.sanitization_flags</code>, never passed through verbatim.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>tests/test_sanitization.py</code> with a labelled set of known injection-style strings (e.g. "ignore previous instructions...") to confirm 100% detection on the test set before integration.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m2-title">Task 2 — ML classifier &amp; novelty detection</div>
+    <ul class="task-items m2-code">
+      <li class="m2-bullet left-accent m2-accent">Write <code>ml/classifier/train.py</code>: trains an XGBoost model on tabular permission/API-call features derived from CICMalDroid/Drebin/AndroZoo, saves to <code>ml/classifier/model.pkl</code>. Write <code>ml/classifier/infer.py</code> exposing <code>predict(features) → score</code>.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>ml/novelty/autoencoder.py</code>: a PyTorch autoencoder trained on benign-app feature vectors; reconstruction error above a calibrated threshold flags a sample as a novel/repacked variant even without a hash match.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>ml/explainability/shap_utils.py</code>: computes top-N SHAP feature contributions for each classifier prediction, formatted for the frontend risk-heatmap.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>services/scoring_service.py</code> combining classifier_score, novelty_score, and rule-based permission-combination checks (SMS-reading + accessibility + overlay) into an ensemble weight, persisted to <code>ml_scores</code>.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m2-title">Task 3 — Claude API agentic orchestration &amp; RAG</div>
+    <ul class="task-items m2-code">
+      <li class="m2-bullet left-accent m2-accent">Write <code>llm/claude_client.py</code>: wraps the Claude API with an agentic tool-use loop — tools for querying static findings, dynamic findings, and the TTP knowledge base. Implement tiered model use: a faster/cheaper model for first-pass triage, escalating to a stronger model only when the ensemble score crosses a risk threshold.</li>
+      <li class="m2-bullet left-accent m2-accent">Build <code>llm/rag/knowledge_base.py</code> and <code>embeddings.py</code>: ingest a banking-fraud TTP taxonomy (OTP interception, overlay attacks, accessibility abuse, fake KYC flows) into pgvector-backed embeddings for retrieval during report generation.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>llm/prompts/ttp_mapping_prompt.py</code> and <code>report_prompt.py</code>: structured prompts that take sanitized findings + retrieved TTP context and return a plain-English summary, TTP mapping array, and a confidence rationale — output constrained to JSON via response schema.</li>
+      <li class="m2-bullet left-accent m2-accent">Write <code>services/llm_orchestration_service.py</code> tying sanitization → retrieval → Claude call → persistence to <code>llm_reports</code>. Write <code>workers/tasks/llm_task.py</code> and <code>scoring_task.py</code> Celery tasks chained after static+dynamic completion.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m2-title">Task 4 — Chat-with-the-APK endpoint</div>
+    <ul class="task-items m2-code">
+      <li class="m2-bullet left-accent m2-accent">Write <code>api/v1/chat.py</code>: <code>POST /submissions/{id}/chat</code> accepts a free-text analyst question, retrieves relevant sanitized findings + TTP context, and returns a grounded answer via the Claude client — never queries the raw unsanitized APK content directly.</li>
+      <li class="m2-bullet left-accent m2-accent">Add per-analyst rate limiting (Claude API cost control) and response caching for repeated questions on the same submission. Save schema to <code>shared/schemas/chat.json</code>.</li>
+    </ul>
+  </div>
+
+  <div class="push-card">
+    <div class="push-title">What to push to GitHub</div>
+    <div class="file-chips">
+      <span class="file-chip m2-chip">backend/app/services/sanitization_service.py</span>
+      <span class="file-chip m2-chip">backend/app/services/scoring_service.py</span>
+      <span class="file-chip m2-chip">backend/app/services/llm_orchestration_service.py</span>
+      <span class="file-chip m2-chip">backend/app/ml/classifier/train.py</span>
+      <span class="file-chip m2-chip">backend/app/ml/classifier/infer.py</span>
+      <span class="file-chip m2-chip">backend/app/ml/classifier/model.pkl</span>
+      <span class="file-chip m2-chip">backend/app/ml/novelty/autoencoder.py</span>
+      <span class="file-chip m2-chip">backend/app/ml/explainability/shap_utils.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/claude_client.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/prompts/sanitization_prompt.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/prompts/ttp_mapping_prompt.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/prompts/report_prompt.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/rag/knowledge_base.py</span>
+      <span class="file-chip m2-chip">backend/app/llm/rag/embeddings.py</span>
+      <span class="file-chip m2-chip">backend/app/api/v1/chat.py</span>
+      <span class="file-chip m2-chip">backend/app/workers/tasks/llm_task.py</span>
+      <span class="file-chip m2-chip">backend/app/workers/tasks/scoring_task.py</span>
+      <span class="file-chip m2-chip">backend/app/models/ml_score.py</span>
+      <span class="file-chip m2-chip">backend/app/models/llm_report.py</span>
+      <span class="file-chip m2-chip">backend/app/tests/test_sanitization.py</span>
+      <span class="file-chip m2-chip">shared/schemas/chat.json</span>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ MEMBER C ═══════════════════════════════════════════════ -->
+<div class="member-section">
+  <div class="member-header">
+    <span class="member-badge m3-badge">Member C — Dynamic Analysis &amp; Data Infra Engineer</span>
+    <span class="branch-badge">Branch: feat/m3-dynamic-analysis-infra</span>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m3-title">Task 1 — Celery/RabbitMQ worker infrastructure</div>
+    <ul class="task-items m3-code">
+      <li class="m3-bullet left-accent m3-accent">Write <code>workers/celery_app.py</code>: configures Celery with RabbitMQ as broker and Redis as result backend, defines two queues (<code>static_queue</code>, <code>dynamic_queue</code>) so a slow sandbox run never blocks static-path throughput. Add retry policy (3 attempts, exponential backoff) for transient failures.</li>
+      <li class="m3-bullet left-accent m3-accent">Provision PostgreSQL 15 with the <code>pgvector</code> extension enabled (<code>CREATE EXTENSION vector;</code>). Write the full Alembic migration for <code>dynamic_findings</code>, <code>campaign_clusters</code>, <code>cluster_members</code>, <code>virustotal_lookups</code> tables per §4.</li>
+      <li class="m3-bullet left-accent m3-accent">Set up Flower for Celery monitoring, exposed on an internal-only port for the team to watch queue depth during demo rehearsal.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m3-title">Task 2 — Dynamic sandbox &amp; Frida instrumentation</div>
+    <ul class="task-items m3-code">
+      <li class="m3-bullet left-accent m3-accent">Write <code>dynamic_analysis/emulator_pool.py</code>: manages a small pool of pre-warmed AVD/Genymotion instances scoped to run only pre-vetted research-corpus samples, with zero real network egress (all traffic routed to a fake-DNS sink).</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>dynamic_analysis/frida_hooks.py</code>: JavaScript hooks injected via Frida to intercept SMS-reading APIs, AccessibilityService callbacks, and overlay-window (<code>TYPE_APPLICATION_OVERLAY</code>) creation — flags recorded per-sample.</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>dynamic_analysis/network_capture.py</code>: captures all outbound connection attempts against the fake-DNS sink for later inclusion in the report. Write <code>dynamic_analysis/sandbox_manager.py</code> orchestrating install → run 60s → hook collection → teardown, saving the full log to object storage.</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>services/dynamic_analysis_service.py</code> and <code>workers/tasks/dynamic_task.py</code> persisting results to <code>dynamic_findings</code>. For the live demo, pre-run 1–2 emulator sessions on known samples and store them as ready evidence, since a live dynamic run is not judge-safe within a hackathon demo window.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m3-title">Task 3 — Campaign clustering &amp; VirusTotal integration</div>
+    <ul class="task-items m3-code">
+      <li class="m3-bullet left-accent m3-accent">Write <code>services/clustering_service.py</code>: embeds each sample's code-chunk features into pgvector, computes cosine similarity against existing <code>campaign_clusters</code> centroids, and either assigns to an existing cluster or creates a new one. Write <code>repositories/cluster_repository.py</code>.</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>api/v1/clusters.py</code>: <code>GET /clusters</code>, <code>GET /clusters/{id}</code>, <code>POST /clusters/recompute</code> (admin-only, re-runs centroid computation across all submissions).</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>services/virustotal_service.py</code>: calls the VirusTotal API with the SHA-256 hash, caches the response in Redis for 24h, and persists to <code>virustotal_lookups</code>. Write <code>api/v1/virustotal.py</code>: <code>GET /submissions/{id}/virustotal</code>.</li>
+      <li class="m3-bullet left-accent m3-accent">Write <code>tests/test_clustering.py</code> confirming that two repackaged variants of the same seeded synthetic sample are correctly grouped into one cluster — the target metric from §2.3 Impact Metrics.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m3-title">Task 4 — Audit logging &amp; data retention</div>
+    <ul class="task-items m3-code">
+      <li class="m3-bullet left-accent m3-accent">Write <code>models/audit_log.py</code> integration hooks called from the verdict-override and escalate endpoints (owned by Member A) and the sanitization-flag path (owned by Member B), so every sensitive action is captured consistently.</li>
+      <li class="m3-bullet left-accent m3-accent">Write a scheduled cleanup job (Celery beat) that purges raw APK bytes from object storage after 90 days while retaining findings/verdict metadata, aligned with the data-protection considerations in §5.4 of the project report.</li>
+    </ul>
+  </div>
+
+  <div class="push-card">
+    <div class="push-title">What to push to GitHub</div>
+    <div class="file-chips">
+      <span class="file-chip m3-chip">backend/app/workers/celery_app.py</span>
+      <span class="file-chip m3-chip">backend/app/dynamic_analysis/emulator_pool.py</span>
+      <span class="file-chip m3-chip">backend/app/dynamic_analysis/frida_hooks.py</span>
+      <span class="file-chip m3-chip">backend/app/dynamic_analysis/network_capture.py</span>
+      <span class="file-chip m3-chip">backend/app/dynamic_analysis/sandbox_manager.py</span>
+      <span class="file-chip m3-chip">backend/app/services/dynamic_analysis_service.py</span>
+      <span class="file-chip m3-chip">backend/app/services/clustering_service.py</span>
+      <span class="file-chip m3-chip">backend/app/services/virustotal_service.py</span>
+      <span class="file-chip m3-chip">backend/app/repositories/cluster_repository.py</span>
+      <span class="file-chip m3-chip">backend/app/api/v1/clusters.py</span>
+      <span class="file-chip m3-chip">backend/app/api/v1/virustotal.py</span>
+      <span class="file-chip m3-chip">backend/app/models/dynamic_finding.py</span>
+      <span class="file-chip m3-chip">backend/app/models/cluster.py</span>
+      <span class="file-chip m3-chip">backend/app/workers/tasks/dynamic_task.py</span>
+      <span class="file-chip m3-chip">backend/app/tests/test_clustering.py</span>
+      <span class="file-chip m3-chip">backend/alembic/versions/0002_dynamic_cluster_vt.py</span>
+      <span class="file-chip m3-chip">shared/schemas/cluster.json</span>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ MEMBER D ═══════════════════════════════════════════════ -->
+<div class="member-section">
+  <div class="member-header">
+    <span class="member-badge m4-badge">Member D — Frontend &amp; DevOps/Integration Lead</span>
+    <span class="branch-badge">Branch: feat/m4-frontend-devops</span>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m4-title">Task 1 — Repo setup, Docker &amp; CI/CD (first 2 hours)</div>
+    <ul class="task-items m4-code">
+      <li class="m4-bullet left-accent m4-accent">Initialize the GitHub repo with the folder structure from §3, add branch protection on <code>main</code> requiring 1 review + passing CI. Create <code>shared/API_CONTRACTS.md</code> and stub JSON schema files in <code>shared/schemas/</code> so all members can code against a fixed contract from hour 1.</li>
+      <li class="m4-bullet left-accent m4-accent">Write <code>infra/docker-compose.yml</code>: services for <code>backend</code>, <code>worker</code>, <code>postgres</code> (with pgvector image), <code>rabbitmq</code>, <code>redis</code>, <code>frontend</code>. Write <code>backend/Dockerfile</code> and <code>frontend/Dockerfile</code> (multi-stage builds).</li>
+      <li class="m4-bullet left-accent m4-accent">Write <code>.github/workflows/ci.yml</code>: lint (ruff/eslint) + test (pytest/vitest) on every PR. Write <code>cd.yml</code>: deploy backend+workers to Railway and frontend to Vercel on merge to <code>main</code>.</li>
+      <li class="m4-bullet left-accent m4-accent">Create <code>.env.example</code> listing every required environment variable across services and <code>docs/README.md</code> with local setup instructions.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m4-title">Task 2 — Dashboard &amp; submission queue UI</div>
+    <ul class="task-items m4-code">
+      <li class="m4-bullet left-accent m4-accent">Build <code>components/Dashboard/StatsPanel.tsx</code> and <code>components/SubmissionQueue/QueueTable.tsx</code>: consumes <code>GET /dashboard/stats</code> and <code>GET /submissions</code>, shows severity-band counts, queue depth, and a filterable/paginated table with live status polling via <code>hooks/usePolling.ts</code> (3s interval until <code>status:"completed"</code>).</li>
+      <li class="m4-bullet left-accent m4-accent">Build <code>components/RiskHeatmap/RiskHeatmap.tsx</code> using Recharts/D3: plots permission-combination risk against SHAP-weighted feature contributions returned by <code>GET /submissions/{id}/ml-score</code>.</li>
+      <li class="m4-bullet left-accent m4-accent">Build <code>pages/LoginPage.tsx</code> and <code>context/AuthContext.tsx</code>: login form, token storage in memory + HttpOnly cookie handling, protected-route wrapper.</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m4-title">Task 3 — Report viewer, Sankey diagram &amp; chat panel</div>
+    <ul class="task-items m4-code">
+      <li class="m4-bullet left-accent m4-accent">Build <code>pages/SubmissionDetailPage.tsx</code> composing <code>components/ReportViewer/ReportViewer.tsx</code> (plain-English summary, TTP mapping cards, risk gauge, recommended action) and <code>components/SankeyDiagram/CausalChainSankey.tsx</code> (D3 Sankey of the static→dynamic→verdict causal chain).</li>
+      <li class="m4-bullet left-accent m4-accent">Build <code>components/ChatPanel/ChatPanel.tsx</code>: calls <code>POST /submissions/{id}/chat</code>, renders conversational history with loading/streaming states and graceful 429 rate-limit messaging.</li>
+      <li class="m4-bullet left-accent m4-accent">Build <code>components/ClusterExplorer/ClusterExplorer.tsx</code> and <code>pages/ClustersPage.tsx</code>: visualizes campaign clusters from <code>GET /clusters</code> as a force-directed graph, linking back to member submissions.</li>
+      <li class="m4-bullet left-accent m4-accent">Write <code>services/api.ts</code> (typed Axios/fetch client), <code>services/auth.ts</code>, <code>services/submissions.ts</code> matching every schema in <code>shared/schemas/</code> exactly. Write <code>hooks/useSubmissions.ts</code>, <code>useAuth.ts</code> (TanStack Query wrappers).</li>
+    </ul>
+  </div>
+
+  <div class="task-card">
+    <div class="task-title m4-title">Task 4 — Testing coordination &amp; report export</div>
+    <ul class="task-items m4-code">
+      <li class="m4-bullet left-accent m4-accent">Write <code>tests/ReportViewer.test.tsx</code> and <code>tests/QueueTable.test.tsx</code> (Vitest + RTL). Coordinate with all members to ensure each backend module ships with its own Pytest suite before merge (see §12 Testing Plan).</li>
+      <li class="m4-bullet left-accent m4-accent">Add one-click PDF/print export on the Report Viewer for the analyst to attach to a case file. Own the integration schedule in §10 and run all checkpoint verifications in §11.</li>
+    </ul>
+  </div>
+
+  <div class="push-card">
+    <div class="push-title">What to push to GitHub</div>
+    <div class="file-chips">
+      <span class="file-chip m4-chip">infra/docker-compose.yml</span>
+      <span class="file-chip m4-chip">backend/Dockerfile</span>
+      <span class="file-chip m4-chip">frontend/Dockerfile</span>
+      <span class="file-chip m4-chip">.github/workflows/ci.yml</span>
+      <span class="file-chip m4-chip">.github/workflows/cd.yml</span>
+      <span class="file-chip m4-chip">shared/API_CONTRACTS.md</span>
+      <span class="file-chip m4-chip">.env.example</span>
+      <span class="file-chip m4-chip">docs/README.md</span>
+      <span class="file-chip m4-chip">frontend/src/components/Dashboard/StatsPanel.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/SubmissionQueue/QueueTable.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/RiskHeatmap/RiskHeatmap.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/ReportViewer/ReportViewer.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/SankeyDiagram/CausalChainSankey.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/ChatPanel/ChatPanel.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/components/ClusterExplorer/ClusterExplorer.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/pages/LoginPage.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/pages/DashboardPage.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/pages/SubmissionDetailPage.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/pages/ClustersPage.tsx</span>
+      <span class="file-chip m4-chip">frontend/src/services/api.ts</span>
+      <span class="file-chip m4-chip">frontend/src/services/auth.ts</span>
+      <span class="file-chip m4-chip">frontend/src/services/submissions.ts</span>
+      <span class="file-chip m4-chip">frontend/src/context/AuthContext.tsx</span>
+      <span class="file-chip m4-chip">frontend/tests/ReportViewer.test.tsx</span>
+      <span class="file-chip m4-chip">frontend/tests/QueueTable.test.tsx</span>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 9. GIT WORKFLOW ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="git">
+  <div class="doc-section-title">9. Git Workflow</div>
+  <div class="subsection-title">Branch Naming</div>
+  <div class="body-text"><code>feat/m{n}-{short-description}</code> for features, <code>fix/{short-description}</code> for bug fixes, <code>chore/{short-description}</code> for infra/tooling. Member branches: <code>feat/m1-backend-static-analysis</code>, <code>feat/m2-ai-ml-pipeline</code>, <code>feat/m3-dynamic-analysis-infra</code>, <code>feat/m4-frontend-devops</code>.</div>
+  <div class="subsection-title">Commit Convention</div>
+  <div class="body-text">Conventional Commits: <code>feat(scope): message</code>, <code>fix(scope): message</code>, <code>chore(scope): message</code>, <code>test(scope): message</code>, <code>docs(scope): message</code>. Example: <code>feat(static-analysis): add androguard permission extraction</code>.</div>
+  <div class="subsection-title">Merge Strategy &amp; PR Rules</div>
+  <div class="body-text">Squash-merge into <code>main</code>. Every PR requires: CI green (lint + test), 1 peer review, no direct schema changes to <code>shared/schemas/</code> without a message in the team channel. Member D merges integration PRs; feature PRs are reviewed cross-member (A↔B, C↔D) to spread pipeline knowledge.</div>
+  <div class="subsection-title">Conflict Resolution &amp; Versioning</div>
+  <div class="body-text">Schema conflicts resolved by treating <code>shared/schemas/</code> as source of truth — whoever changes it updates the API_CONTRACTS.md in the same PR. Semantic versioning tags on submission: <code>v1.0.0-submission</code>. Rollback via <code>git revert</code> on <code>main</code>, never force-push.</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 10. INTEGRATION PLAN ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="integration">
+  <div class="doc-section-title">10. Integration Plan</div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 1 — Repository &amp; contract initialization</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-d">Member D</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H0–H2</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Create the GitHub repo with the full §3 folder skeleton and empty placeholder files so every member's first commit only adds content, never structure — avoiding early merge conflicts.</li>
+      <li class="int-accent">Commit <code class="int-code">shared/API_CONTRACTS.md</code> and JSON schema stubs for auth, submission, verdict, cluster, and chat contracts. All four members review and sign off on field names before writing implementation code.</li>
+      <li class="int-accent">Push <code class="int-code">infra/docker-compose.yml</code> and confirm <code class="int-code">docker compose up</code> brings up Postgres+pgvector, RabbitMQ, and Redis locally for every member.</li>
+    </ul>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 2 — Environment variables</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-all">All members</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H2</span></div>
+    <table class="info-table env-var-table">
+      <tr><th>Variable</th><th>Owner</th><th>Description</th></tr>
+      <tr><td>DATABASE_URL</td><td>Member A</td><td>Postgres connection string</td></tr>
+      <tr><td>JWT_SECRET</td><td>Member A</td><td>HS256 signing secret</td></tr>
+      <tr><td>REDIS_URL</td><td>Member C</td><td>Cache + Celery result backend</td></tr>
+      <tr><td>RABBITMQ_URL</td><td>Member C</td><td>Celery broker</td></tr>
+      <tr><td>STORAGE_BUCKET / STORAGE_KEY / STORAGE_SECRET</td><td>Member A</td><td>S3-compatible object storage</td></tr>
+      <tr><td>CLAUDE_API_KEY</td><td>Member B</td><td>LLM orchestration</td></tr>
+      <tr><td>VIRUSTOTAL_API_KEY</td><td>Member C</td><td>Hash cross-check</td></tr>
+      <tr><td>VITE_API_BASE_URL</td><td>Member D</td><td>Frontend → backend base URL</td></tr>
+    </table>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 3 — Auth + Submissions vertical slice</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-a">Member A</span><span class="who-badge who-d">Member D</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H8–H10</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Member A merges <code class="int-code">feat/m1-backend-static-analysis</code> auth + submission endpoints. Member D connects the frontend login page and upload flow against the deployed Railway URL and confirms an end-to-end register → login → upload round trip.</li>
+    </ul>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 4 — Static + dynamic pipeline join</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-a">Member A</span><span class="who-badge who-c">Member C</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H16–H18</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Confirm a submitted APK triggers both <code class="int-code">static_task</code> and <code class="int-code">dynamic_task</code> in parallel via Flower's queue view. Verify <code class="int-code">apk_submissions.status</code> transitions correctly through all pipeline stages without a stuck job.</li>
+    </ul>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 5 — Sanitization → scoring → LLM report chain</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-b">Member B</span><span class="who-badge who-a">Member A</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H24–H26</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Feed a known sample with an embedded injection-style string through the full pipeline and confirm it is flagged in <code class="int-code">llm_reports.sanitization_flags</code> and never appears verbatim in the generated summary. Confirm <code class="int-code">risk_verdicts</code> is populated with a coherent score, band, and action.</li>
+    </ul>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 6 — Dashboard end-to-end verification</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-d">Member D</span><span class="who-badge who-b">Member B</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H30–H32</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Open the Report Viewer for the H24 test sample: confirm the risk gauge, TTP mapping cards, Sankey causal chain, and chat panel all render real (non-mock) data from the Railway API.</li>
+      <li class="int-accent">Test the Cluster Explorer with two repackaged variants of the same seeded sample — confirm they render as one cluster, not two isolated nodes.</li>
+    </ul>
+  </div>
+
+  <div class="checkpoint-card">
+    <div class="checkpoint-header"><span class="checkpoint-time">H32 — Checkpoint</span><span class="checkpoint-title">Full pipeline verified — begin demo polish</span></div>
+    <ul class="checklist">
+      <li><span class="check-box"></span>All API endpoints return non-mock data from the deployed Railway API</li>
+      <li><span class="check-box"></span>Static + dynamic analysis run in parallel and both feed the scoring ensemble</li>
+      <li><span class="check-box"></span>Sanitization layer correctly flags a known injection-style test string</li>
+      <li><span class="check-box"></span>Risk verdict shows a coherent score, severity band and recommended action</li>
+      <li><span class="check-box"></span>Two repacked variants of a seeded sample cluster together</li>
+      <li><span class="check-box"></span>Chat-with-the-APK returns a grounded, sanitized answer</li>
+      <li><span class="check-box"></span>Dashboard heatmap and Sankey diagram render real SHAP/TTP data</li>
+    </ul>
+  </div>
+
+  <div class="int-task-card">
+    <div class="int-task-title">Step 7 — Demo data seeding &amp; rehearsal</div>
+    <div class="who-row" style="margin-bottom:14px;"><span class="who-label">Responsible</span><span class="who-badge who-all">All members</span><span class="who-label" style="margin-left:8px;">Time</span><span class="who-badge who-all">H32–H44</span></div>
+    <ul class="int-items">
+      <li class="int-accent">Seed 4–5 pre-analyzed samples covering low/medium/high/critical bands, plus the two clustered repacked variants, so the demo queue is visually compelling without waiting on a live 5-minute analysis run.</li>
+      <li class="int-accent">Prepare a 3-minute demo script: (1) show the queue and dashboard heatmap (30s); (2) open a critical-band report — summary, TTP mapping, Sankey chain (45s); (3) show the sanitization flag on the injection-test sample (30s); (4) chat with the APK live (30s); (5) show the cluster explorer grouping the two repacked variants (30s); (6) show the VirusTotal cross-check panel (15s).</li>
+      <li class="int-accent">Prepare fallbacks: if Railway is unreachable, Member A runs the API locally + ngrok and Member D swaps <code class="int-code">VITE_API_BASE_URL</code>. If the Claude API is rate-limited mid-demo, show a pre-recorded chat response.</li>
+    </ul>
+  </div>
+
+  <div class="submit-card">
+    <div class="submit-title">Step 8 — Final submission checklist (Member D · H46–H48)</div>
+    <ul class="int-items submit-items">
+      <li style="border-left:3px solid #555; padding-left:16px; color:#d0d0d0;">Tag the release: <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">git tag v1.0.0-submission &amp;&amp; git push origin v1.0.0-submission</code>. Confirm the Vercel URL is live and the Railway <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">/health</code> endpoint returns ok.</li>
+      <li style="border-left:3px solid #555; padding-left:16px; color:#d0d0d0;">Submission form: live demo URL, GitHub repo URL, 3-minute demo video, team roles, track selection.</li>
+      <li style="border-left:3px solid #555; padding-left:16px; color:#d0d0d0;">Confirm <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">README.md</code> has architecture diagram, setup steps, and demo link.</li>
+      <li style="border-left:3px solid #555; padding-left:16px; color:#d0d0d0;">Verify no secrets committed: run a history grep for "key|secret|password"; confirm <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">.gitignore</code> covers <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">.env</code>, <code style="background:#333;color:#e0e0e0;border-color:#555;font-family:monospace;font-size:12px;padding:2px 7px;border-radius:5px;">*.pkl</code> model artifacts if large, and any raw sample APKs.</li>
+    </ul>
+  </div>
+
+  <div class="verify-card">
+    <div class="verify-title">Integration complete — final verification (all members)</div>
+    <ul class="int-items verify-items">
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">Railway API health check passes and returns <code>{"status":"ok"}</code></li>
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">Vercel frontend loads with real seeded data in under 3 seconds</li>
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">All 4 severity bands are represented in the seeded demo queue</li>
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">Chat-with-the-APK responds within 5 seconds with no timeout errors</li>
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">GitHub repo is public, README complete, v1.0.0-submission tag exists</li>
+      <li style="border-left:3px solid #16a34a; padding-left:16px; color:#14532d;">Submission form fully filled before the deadline</li>
+    </ul>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 11. CHECKPOINTS ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="checkpoints">
+  <div class="doc-section-title">11. Checkpoints (48-hour timeline)</div>
+  <table class="info-table">
+    <tr><th>Checkpoint</th><th>Hour</th><th>Deliverable</th></tr>
+    <tr><td>Checkpoint 1</td><td>H2</td><td>Repo, folder skeleton, contracts, docker-compose all committed</td></tr>
+    <tr><td>Checkpoint 2</td><td>H10</td><td>Auth + submission upload working end-to-end (frontend → backend → storage)</td></tr>
+    <tr><td>Checkpoint 3</td><td>H18</td><td>Static + dynamic analysis both persisting findings in parallel</td></tr>
+    <tr><td>Checkpoint 4</td><td>H26</td><td>Sanitization → scoring → LLM report chain produces a full verdict</td></tr>
+    <tr><td>Checkpoint 5 (Full integration)</td><td>H32</td><td>Dashboard, report viewer, clustering, chat all show real data</td></tr>
+    <tr><td>Demo Polish</td><td>H32–H44</td><td>Seeded demo data, rehearsed script, fallback plans</td></tr>
+    <tr><td>Final Merge &amp; Deployment</td><td>H44–H46</td><td>All branches merged to main, production deploy verified</td></tr>
+    <tr><td>Submission</td><td>H46–H48</td><td>Tag, README, secrets check, form submitted</td></tr>
+  </table>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 12. TESTING PLAN ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="testing">
+  <div class="doc-section-title">12. Testing Plan</div>
+  <div class="subsection-title">Unit Testing</div>
+  <div class="body-text">Pytest for every service and repository (hashing, sanitization pattern matching, scoring ensemble math, clustering similarity). Vitest + React Testing Library for component logic (queue filters, polling hook, chat state).</div>
+  <div class="subsection-title">Integration Testing</div>
+  <div class="body-text">Pytest + httpx against a test Postgres instance covering the full submission→static→dynamic→scoring→verdict chain with a seeded fixture APK, run in CI on every PR touching <code>backend/</code>.</div>
+  <div class="subsection-title">API Testing</div>
+  <div class="body-text">Contract tests validating every response against the JSON schemas in <code>shared/schemas/</code>, run as part of CI so a frontend/backend field mismatch fails the build instead of surfacing at demo time.</div>
+  <div class="subsection-title">UI Testing</div>
+  <div class="body-text">Component tests for ReportViewer, QueueTable, ChatPanel; a Playwright smoke test for the critical path (login → upload → view report) run against a staging deploy before each checkpoint.</div>
+  <div class="subsection-title">Performance Testing</div>
+  <div class="body-text">Locust load test simulating 50 concurrent submissions to confirm the Celery worker queue absorbs bursts without the API blocking, validating the horizontal-scaling claim in §2.7 Scalability.</div>
+  <div class="subsection-title">Security Testing</div>
+  <div class="body-text">Manual adversarial test set of prompt-injection strings run through the sanitization layer (target: 100% flag rate on the known set); JWT tampering and expired-token rejection tests; role-escalation attempt tests on the override/escalate endpoints.</div>
+  <div class="subsection-title">Acceptance Testing</div>
+  <div class="body-text">Walkthrough against the 2.3 Impact Metrics: sub-5-minute first-pass triage on a seeded sample, ≥80% repacked-variant clustering accuracy on the labelled test set, before final sign-off.</div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 13. DEPLOYMENT ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="deployment">
+  <div class="doc-section-title">13. Deployment</div>
+  <table class="info-table">
+    <tr><th>Environment</th><th>Details</th></tr>
+    <tr><td>Development</td><td><code>docker compose up</code> locally — Postgres+pgvector, RabbitMQ, Redis, backend with hot-reload, frontend Vite dev server</td></tr>
+    <tr><td>Staging</td><td>Railway preview environment per PR (backend+workers), Vercel preview deploy per PR (frontend) — used for checkpoint verification</td></tr>
+    <tr><td>Production</td><td>Railway (FastAPI service, Celery worker service, managed Postgres, managed RabbitMQ, Redis) + Vercel (frontend), both auto-deployed from <code>main</code> via GitHub Actions <code>cd.yml</code></td></tr>
+    <tr><td>Docker</td><td>Multi-stage Dockerfiles for backend and frontend; worker image reuses the backend image with a different entrypoint (<code>celery -A app.workers.celery_app worker</code>)</td></tr>
+    <tr><td>Environment Variables</td><td>Managed per-service in Railway/Vercel dashboards; never committed — see §10 Step 2 table</td></tr>
+    <tr><td>Monitoring &amp; Logging</td><td>Sentry (FastAPI + React), structured JSON logs to stdout, Flower for Celery queue visibility, Railway/Vercel built-in resource metrics</td></tr>
+    <tr><td>Rollback Strategy</td><td><code>git revert</code> the offending merge commit on <code>main</code>, which re-triggers <code>cd.yml</code> and redeploys the previous known-good state; database migrations are additive-only during the hackathon window to keep rollbacks safe</td></tr>
+  </table>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════ 14. FINAL CHECKLIST ═══════════════════════════════════════════════ -->
+<div class="doc-section" id="checklist">
+  <div class="doc-section-title">14. Final Checklist</div>
+  <div class="checkpoint-card">
+    <div class="checkpoint-header"><span class="checkpoint-time">Submission Ready</span><span class="checkpoint-title">Everything a judge needs to see</span></div>
+    <ul class="checklist">
+      <li><span class="check-box"></span>Live Vercel demo URL loads with seeded, non-mock data</li>
+      <li><span class="check-box"></span>Railway API and worker fleet both healthy, Flower shows no stuck jobs</li>
+      <li><span class="check-box"></span>All 14 architecture sections in this document are reflected in the actual codebase</li>
+      <li><span class="check-box"></span>Sanitization-layer demo proves the "AI Evasion" differentiator live</li>
+      <li><span class="check-box"></span>Cluster explorer proves repacked-variant detection live</li>
+      <li><span class="check-box"></span>README, architecture diagram, and demo video are all linked from the GitHub repo</li>
+      <li><span class="check-box"></span>v1.0.0-submission tag pushed and submission form completed before the deadline</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

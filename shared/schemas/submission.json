@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FraudShield AI — Submissions API Contract",
+  "description": "Source-of-truth request/response shapes for /api/v1/submissions. Owner: Member A. Frontend (Member D) codes against this.",
+  "version": "1.0.0",
+  "endpoints": {
+    "POST /api/v1/submissions": {
+      "auth": "bearer",
+      "request": {
+        "contentType": "multipart/form-data",
+        "fields": { "file": "binary .apk, max 200MB" }
+      },
+      "response": { "status": 201, "body": { "$ref": "#/definitions/SubmissionCreateResponse" } },
+      "errors": [
+        { "status": 413, "code": "payload_too_large", "message": "File exceeds 200 MB limit" },
+        { "status": 415, "code": "unsupported_media_type", "message": "Not a valid APK" }
+      ]
+    },
+    "GET /api/v1/submissions": {
+      "auth": "bearer",
+      "query": { "status": "string?", "severity": "string?", "page": "int>=1", "page_size": "int 1..100" },
+      "response": { "status": 200, "body": { "$ref": "#/definitions/PaginatedSubmissions" } }
+    },
+    "GET /api/v1/submissions/{id}": {
+      "auth": "bearer",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/SubmissionDetail" } },
+      "errors": [ { "status": 404, "code": "not_found", "message": "Submission not found" } ]
+    },
+    "GET /api/v1/submissions/{id}/status": {
+      "auth": "bearer",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/SubmissionStatusResponse" } }
+    },
+    "DELETE /api/v1/submissions/{id}": {
+      "auth": "bearer (lead|admin)",
+      "response": { "status": 204 },
+      "errors": [ { "status": 403, "code": "forbidden", "message": "Insufficient role" } ]
+    }
+  },
+  "definitions": {
+    "SubmissionCreateResponse": {
+      "type": "object",
+      "required": ["id", "status", "sha256_hash"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "status": { "type": "string", "enum": ["queued"] },
+        "sha256_hash": { "type": "string", "minLength": 64, "maxLength": 64 }
+      }
+    },
+    "SubmissionStatusResponse": {
+      "type": "object",
+      "required": ["id", "status", "progress_pct"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "status": {
+          "type": "string",
+          "enum": ["queued", "static_running", "dynamic_running", "scoring", "completed", "failed"]
+        },
+        "progress_pct": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "SubmissionSummary": {
+      "type": "object",
+      "required": ["id", "original_filename", "sha256_hash", "status", "submitted_at"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "original_filename": { "type": "string" },
+        "sha256_hash": { "type": "string" },
+        "status": { "type": "string" },
+        "submitted_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "severity_band": { "type": ["string", "null"], "enum": ["low", "medium", "high", "critical", null] },
+        "final_risk_score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 }
+      }
+    },
+    "PaginatedSubmissions": {
+      "type": "object",
+      "required": ["items", "total", "page", "page_size"],
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/definitions/SubmissionSummary" } },
+        "total": { "type": "integer" },
+        "page": { "type": "integer" },
+        "page_size": { "type": "integer" }
+      }
+    },
+    "StaticFindingOut": {
+      "type": "object",
+      "properties": {
+        "package_name": { "type": ["string", "null"] },
+        "permissions": { "type": "object" },
+        "certificate_info": { "type": ["object", "null"] },
+        "api_call_graph": { "type": ["object", "null"] },
+        "obfuscation_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "VerdictOut": {
+      "type": "object",
+      "required": ["final_risk_score", "severity_band", "recommended_action"],
+      "properties": {
+        "final_risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "severity_band": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "recommended_action": { "type": "string" },
+        "analyst_override_score": { "type": ["integer", "null"] }
+      }
+    },
+    "SubmissionDetail": {
+      "type": "object",
+      "required": ["id", "uploaded_by", "original_filename", "sha256_hash", "status", "submitted_at"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "uploaded_by": { "type": "string", "format": "uuid" },
+        "original_filename": { "type": "string" },
+        "sha256_hash": { "type": "string" },
+        "status": { "type": "string" },
+        "submitted_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "static_finding": { "oneOf": [{ "$ref": "#/definitions/StaticFindingOut" }, { "type": "null" }] },
+        "verdict": { "oneOf": [{ "$ref": "#/definitions/VerdictOut" }, { "type": "null" }] }
+      }
+    }
+  }
+}

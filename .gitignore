@@ -1,0 +1,33 @@
+# ─── FraudShield AI · .gitignore (Member D) ────────────────────────────
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# Object-storage / sandbox scratch + raw samples (never commit APKs)
+/tmp/fraudshield-storage/
+*.apk
+sandbox_logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# NOTE: backend/app/ml/classifier/model.pkl IS committed on purpose
+# (485 KB trained artifact the pipeline loads at runtime).

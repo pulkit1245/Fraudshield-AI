@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FraudShield AI — Clusters & VirusTotal API Contract",
+  "description": "Source-of-truth shapes for /api/v1/clusters and the VirusTotal cross-check. Owner: Member C. Frontend (Member D) ClusterExplorer codes against this.",
+  "version": "1.0.0",
+  "endpoints": {
+    "GET /api/v1/clusters": {
+      "auth": "bearer",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/ClusterListResponse" } }
+    },
+    "GET /api/v1/clusters/{id}": {
+      "auth": "bearer",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/ClusterDetail" } },
+      "errors": [ { "status": 404, "code": "not_found", "message": "Cluster not found" } ]
+    },
+    "POST /api/v1/clusters/recompute": {
+      "auth": "bearer (admin)",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/RecomputeResponse" } },
+      "errors": [ { "status": 403, "code": "forbidden", "message": "Insufficient role" } ]
+    },
+    "GET /api/v1/submissions/{id}/virustotal": {
+      "auth": "bearer",
+      "response": { "status": 200, "body": { "$ref": "#/definitions/VirusTotalResult" } },
+      "errors": [ { "status": 404, "code": "not_found", "message": "Submission not found" } ]
+    }
+  },
+  "definitions": {
+    "ClusterSummary": {
+      "type": "object",
+      "required": ["id", "cluster_name", "member_count"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "cluster_name": { "type": "string" },
+        "member_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ClusterListResponse": {
+      "type": "object",
+      "required": ["items", "total"],
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/definitions/ClusterSummary" } },
+        "total": { "type": "integer" }
+      }
+    },
+    "ClusterDetail": {
+      "type": "object",
+      "required": ["id", "cluster_name", "member_count", "members"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "cluster_name": { "type": "string" },
+        "member_count": { "type": "integer" },
+        "members": { "type": "array", "items": { "type": "string", "format": "uuid" } }
+      }
+    },
+    "RecomputeResponse": {
+      "type": "object",
+      "required": ["clusters_recomputed"],
+      "properties": { "clusters_recomputed": { "type": "integer" } }
+    },
+    "VirusTotalResult": {
+      "type": "object",
+      "required": ["status", "sha256"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "not_found", "not_configured", "error"] },
+        "sha256": { "type": "string" },
+        "malicious": { "type": "integer" },
+        "suspicious": { "type": "integer" },
+        "harmless": { "type": "integer" },
+        "undetected": { "type": "integer" },
+        "reputation": { "type": ["integer", "null"] },
+        "meaningful_name": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

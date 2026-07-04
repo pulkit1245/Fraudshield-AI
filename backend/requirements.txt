@@ -1,0 +1,56 @@
+# ─── FraudShield AI · Backend (Member A) ───────────────────────────────
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+gunicorn==22.0.0
+python-multipart==0.0.9
+
+# Data / validation
+pydantic==2.7.4
+pydantic-settings==2.3.4
+
+# Database
+SQLAlchemy==2.0.31
+alembic==1.13.2
+psycopg2-binary==2.9.9
+pgvector==0.3.0
+
+# Auth / security
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.3
+PyJWT==2.8.0
+
+# Async jobs / cache
+celery==5.4.0
+redis==5.0.7
+
+# Object storage (S3-compatible)
+boto3==1.34.140
+
+# Static analysis
+androguard==3.4.0a1
+
+# Logging
+structlog==24.2.0
+
+# External
+requests==2.32.3
+
+# ── AI / ML (Member B) ─────────────────────────────────────────────────
+numpy==1.26.4
+scikit-learn==1.5.1
+xgboost==2.0.3          # preferred classifier; train.py falls back to sklearn RF
+joblib==1.4.2
+torch==2.3.1            # autoencoder novelty; NoveltyDetector falls back to PCA
+shap==0.45.1            # explainability; shap_utils falls back to importances
+anthropic==0.31.2       # Claude API; orchestration falls back to deterministic report
+
+# ── Dynamic analysis / infra (Member C) ────────────────────────────────
+flower==2.0.1           # Celery queue-depth dashboard
+frida==16.4.8           # dynamic instrumentation (live sandbox mode only)
+# pgvector already pinned above (Member A); vector(768) family signatures
+
+# Testing
+pytest==8.2.2
+pytest-asyncio==0.23.7
+httpx==0.27.0
