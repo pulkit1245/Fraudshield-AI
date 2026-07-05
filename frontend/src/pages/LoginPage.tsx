@@ -62,8 +62,8 @@ export default function LoginPage() {
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
           <input
-            type="password" required placeholder="Password (min 10 chars)" value={password}
-            onChange={(e) => setPassword(e.target.value)} aria-label="Password" minLength={10}
+            type="password" required placeholder="Password (min 8 chars)" value={password}
+            onChange={(e) => setPassword(e.target.value)} aria-label="Password" minLength={8}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
           {mode === "register" && (

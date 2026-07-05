@@ -48,7 +48,9 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     command: >
-      sh -c "alembic upgrade head &&
+      sh -c "mkdir -p /tmp/fraudshield-storage/apks &&
+             chown -R 1000:1000 /tmp/fraudshield-storage &&
+             alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
     env_file:
       - ../.env
@@ -58,6 +60,8 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
     ports:
       - "8000:8000"
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -74,6 +78,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
     depends_on:
       backend: { condition: service_started }
 
@@ -89,6 +95,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
       SANDBOX_MODE: simulate
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
     depends_on:
       backend: { condition: service_started }
 
@@ -132,3 +140,4 @@ services:
 
 volumes:
   pgdata:
+  apk_storage:   # shared between backend + workers so uploaded APKs are accessible

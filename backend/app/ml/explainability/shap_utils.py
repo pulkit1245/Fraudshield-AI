@@ -59,11 +59,15 @@ def compute_contributions(model, vector: np.ndarray, top_n: int = 8) -> dict[str
     if contributions is None:
         contributions, method = _importance_fallback(model, vector)
 
+    n = len(contributions)
+    top_n = min(top_n, n)
     order = np.argsort(np.abs(contributions))[::-1][:top_n]
+    # Guard: only use indices valid for both contributions and FEATURE_NAMES.
+    order = [int(i) for i in order if i < n]
     top = [
         {
             "feature": FEATURE_NAMES[i] if i < len(FEATURE_NAMES) else f"f{i}",
-            "value": round(float(vector[i]), 4),
+            "value": round(float(vector[i]) if i < len(vector) else 0.0, 4),
             "contribution": round(float(contributions[i]), 5),
             "direction": "increases_risk" if contributions[i] >= 0 else "decreases_risk",
         }

@@ -1,0 +1,17 @@
+# ── FraudShield AI · backend .dockerignore ──────────────────────────────
+# Keeps the build context lean — only source code and requirements are needed.
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea/
+.vscode/

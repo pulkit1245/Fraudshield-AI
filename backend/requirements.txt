@@ -41,9 +41,10 @@ numpy==1.26.4
 scikit-learn==1.5.1
 xgboost==2.0.3          # preferred classifier; train.py falls back to sklearn RF
 joblib==1.4.2
-torch==2.3.1            # autoencoder novelty; NoveltyDetector falls back to PCA
+# torch==2.3.1          # optional: autoencoder novelty — NoveltyDetector auto-falls back to PCA (sklearn) when absent
 shap==0.45.1            # explainability; shap_utils falls back to importances
 anthropic==0.31.2       # Claude API; orchestration falls back to deterministic report
+google-generativeai==0.8.3
 
 # ── Dynamic analysis / infra (Member C) ────────────────────────────────
 flower==2.0.1           # Celery queue-depth dashboard

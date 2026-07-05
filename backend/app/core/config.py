@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     STORAGE_REGION: str = Field(default="us-east-005")
 
     # ── External services ───────────────────────────────────────────────
+    GEMINI_API_KEY: str = Field(default="")        # Member B
     CLAUDE_API_KEY: str = Field(default="")        # Member B
     VIRUSTOTAL_API_KEY: str = Field(default="")    # Member C
 

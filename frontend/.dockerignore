@@ -1,0 +1,14 @@
+# ── FraudShield AI · frontend .dockerignore ─────────────────────────────
+# Keep the build context small — Docker reinstalls deps via npm ci inside
+# the build stage, so local node_modules are never needed in the image.
+
+node_modules/
+dist/
+.vite/
+*.local
+*.log
+.DS_Store
+.env*
+tests/
+*.md
+vite.config.ts.timestamp-*

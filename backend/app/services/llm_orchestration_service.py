@@ -21,7 +21,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.llm.claude_client import ClaudeClient, get_analysis_tools
+from app.llm.claude_client import get_analysis_tools
+from app.llm.gemini_client import GeminiClient
 from app.llm.prompts.report_prompt import (
     REPORT_SYSTEM_PROMPT,
     build_report_prompt,
@@ -42,9 +43,9 @@ log = get_logger(__name__)
 
 
 class LLMOrchestrationService:
-    def __init__(self, db: Session, claude: ClaudeClient | None = None) -> None:
+    def __init__(self, db: Session, llm: GeminiClient | None = None) -> None:
         self.db = db
-        self.claude = claude or ClaudeClient()
+        self.llm = llm or GeminiClient()
         self.sanitizer = SanitizationService(enable_llm_tier=False)
         self.kb = get_knowledge_base()
 
@@ -92,22 +93,22 @@ class LLMOrchestrationService:
     # ── reasoning ───────────────────────────────────────────────────────
     def _reason(self, sanitized: dict, ml_context: dict, ttp_context: list[dict],
                 risk: float | None):
-        if self.claude.is_available:
+        if self.llm.is_available:
             try:
-                return self._reason_with_claude(sanitized, ml_context, ttp_context, risk)
+                return self._reason_with_llm(sanitized, ml_context, ttp_context, risk)
             except Exception as exc:  # noqa: BLE001
-                log.warning("llm.claude_failed_fallback", error=str(exc))
+                log.warning("llm.failed_fallback", error=str(exc))
         # Deterministic fallback path.
         ttp_mapping = self._rule_based_ttp(sanitized, ttp_context)
         report = fallback_report(sanitized, ml_context, ttp_mapping)
         return ttp_mapping, report, "fallback-deterministic-v1", None
 
-    def _reason_with_claude(self, sanitized: dict, ml_context: dict,
+    def _reason_with_llm(self, sanitized: dict, ml_context: dict,
                             ttp_context: list[dict], risk: float | None):
-        model = self.claude.choose_model(risk)
+        model = self.llm.choose_model(risk)
 
         # (a) TTP mapping — constrained JSON.
-        mapping_raw = self.claude.classify_json(
+        mapping_raw = self.llm.classify_json(
             system=TTP_MAPPING_SYSTEM_PROMPT,
             messages=[{"role": "user",
                        "content": build_ttp_mapping_prompt(sanitized, ttp_context)}],
@@ -115,19 +116,16 @@ class LLMOrchestrationService:
         )
         ttp_mapping = mapping_raw or self._rule_based_ttp(sanitized, ttp_context)
 
-        # (b) Report — agentic tool-use loop grounded in findings + KB.
-        tool_dispatch = self._make_tool_dispatch(sanitized)
-        loop = self.claude.run_agentic_loop(
+        # (b) Report — single-shot generation to conserve Free-Tier API requests (15 RPM).
+        report_raw = self.llm.classify_json(
             system=REPORT_SYSTEM_PROMPT,
-            user_prompt=build_report_prompt(sanitized, ml_context, ttp_mapping),
-            tools=get_analysis_tools(),
-            tool_dispatch=tool_dispatch,
+            messages=[{"role": "user", "content": build_report_prompt(sanitized, ml_context, ttp_mapping)}],
             model=model,
+            max_tokens=1500,
         )
-        from app.llm.claude_client import _extract_json  # local reuse
 
-        report = _extract_json(loop["text"]) or fallback_report(sanitized, ml_context, ttp_mapping)
-        return ttp_mapping, report, loop["model"], loop["tokens"]
+        report = report_raw or fallback_report(sanitized, ml_context, ttp_mapping)
+        return ttp_mapping, report, model, None
 
     def _make_tool_dispatch(self, sanitized: dict):
         static_part = {k: v for k, v in sanitized.items() if k != "_dynamic"}
