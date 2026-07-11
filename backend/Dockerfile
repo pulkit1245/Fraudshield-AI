@@ -33,6 +33,9 @@ COPY . .
 
 # Non-root runtime user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+
+
+
 USER appuser
 
 EXPOSE 8000

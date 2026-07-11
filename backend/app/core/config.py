@@ -60,14 +60,23 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 200 * 1024 * 1024  # 200 MB per §5 API spec
 
     # ── CORS ────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    # Stored as a plain str so pydantic-settings never tries json.loads() on it;
+    # use the `cors_origins_list` property to get the parsed list at runtime.
+    CORS_ORIGINS: str = Field(default="http://localhost:5173")
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_cors(cls, v):
         if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
+            return v.strip() or "http://localhost:5173"
+        if isinstance(v, list):
+            return ",".join(v)
         return v
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Return CORS_ORIGINS as a parsed list of stripped origin strings."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     @property
     def is_production(self) -> bool:
