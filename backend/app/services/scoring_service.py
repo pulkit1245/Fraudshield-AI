@@ -32,9 +32,9 @@ from app.static_analysis import permission_extractor
 log = get_logger(__name__)
 
 # Ensemble weights (sum to 1.0).
-W_CLASSIFIER = 0.45
-W_NOVELTY = 0.15
-W_RULES = 0.40
+W_CLASSIFIER = 0.75
+W_NOVELTY = 0.20
+W_RULES = 0.05
 
 
 class ScoringService:

@@ -133,9 +133,12 @@ class NoveltyDetector:
         x = np.asarray(vector, dtype=np.float64)
         xs = (x - self._scaler_mean) / self._scaler_std
         err = self._recon_error(xs)
-        # Robust z against the benign error distribution, squashed to [0, 1].
+        # Robust z against the benign error distribution
         z = (err - self._err_median) / (self._err_scale * 3.0)
-        return float(1.0 / (1.0 + np.exp(-z)))
+        if z <= 0.0:
+            return 0.0
+        # For error above median, map to [0, 1) smoothly.
+        return float(1.0 - np.exp(-z))
 
 
 # ── lazily-fitted process-wide default ──────────────────────────────────

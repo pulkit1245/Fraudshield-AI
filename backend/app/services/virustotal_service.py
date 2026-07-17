@@ -70,14 +70,18 @@ class VirustotalService:
 
     # ── VT call ─────────────────────────────────────────────────────────
     def _query_vt(self, sha256: str) -> dict[str, Any]:
-        if not settings.VIRUSTOTAL_API_KEY:
+        api_key = (settings.VIRUSTOTAL_API_KEY or "").strip()
+        # Guard: strip any non-ASCII characters (e.g. inline comments with em-dashes
+        # that end up in the value when the .env line has a trailing comment).
+        api_key = api_key.encode("ascii", errors="ignore").decode("ascii").strip()
+        if not api_key:
             return {"status": "not_configured", "sha256": sha256}
         try:
             import requests
 
             resp = requests.get(
                 VT_URL.format(sha256=sha256),
-                headers={"x-apikey": settings.VIRUSTOTAL_API_KEY},
+                headers={"x-apikey": api_key},
                 timeout=10,
             )
             if resp.status_code == 404:
