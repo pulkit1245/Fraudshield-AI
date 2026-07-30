@@ -76,7 +76,11 @@ class ClusteringService:
                     "cluster_name": best_cluster.cluster_name,
                     "similarity": round(float(best_sim), 4), "is_new": False}
 
-        name = f"family-{len(self.repo.all_clusters()) + 1:03d}"
+        # Use a UUID suffix for uniqueness — len(all_clusters()) is a TOCTOU
+        # race: two concurrent workers can read the same count and produce
+        # duplicate names like "family-003" x2.
+        import uuid as _uuid
+        name = f"family-{_uuid.uuid4().hex[:8]}"
         cluster = self.repo.create_cluster(cluster_name=name,
                                            family_signature=signature.tolist())
         self.repo.add_member(cluster.id, submission_id)

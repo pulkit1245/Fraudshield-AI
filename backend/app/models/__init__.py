@@ -16,6 +16,7 @@ from app.models.submission import Submission  # noqa: F401
 from app.models.static_finding import StaticFinding  # noqa: F401
 from app.models.verdict import RiskVerdict  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.threat_intelligence import DetectionMarker, TTP  # noqa: F401
 
 # ── Members B / C models (optional during parallel dev) ─────────────────
 try:  # pragma: no cover - depends on teammates' branches
@@ -46,4 +47,6 @@ __all__ = [
     "StaticFinding",
     "RiskVerdict",
     "AuditLog",
+    "TTP",
+    "DetectionMarker",
 ]

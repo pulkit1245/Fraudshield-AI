@@ -34,14 +34,20 @@ _ACTIVE_STATUSES = ("queued", "static_running", "dynamic_running", "scoring")
 
 # Lazily-initialized Redis client (None if unavailable).
 _redis = None
-_redis_tried = False
+_redis_last_attempt: float = 0.0
+_REDIS_RETRY_INTERVAL = 30.0  # seconds between reconnect attempts
 
 
 def _get_redis():
-    global _redis, _redis_tried
-    if _redis_tried:
+    """Return Redis client, retrying connection every 30s if previously failed."""
+    global _redis, _redis_last_attempt
+    import time
+    now = time.monotonic()
+    if _redis is not None:
         return _redis
-    _redis_tried = True
+    if now - _redis_last_attempt < _REDIS_RETRY_INTERVAL:
+        return None  # Back-off: don't hammer Redis on every request
+    _redis_last_attempt = now
     try:  # pragma: no cover - depends on a running Redis
         import redis
 
@@ -51,6 +57,7 @@ def _get_redis():
     except Exception:  # noqa: BLE001
         _redis = None
     return _redis
+
 
 
 def _compute_stats(db: Session) -> dict:
@@ -87,9 +94,9 @@ def _compute_stats(db: Session) -> dict:
         .limit(1000)
     ).all()
     durations = [
-        (c - s).total_seconds()
-        for s, c in pairs
-        if s is not None and c is not None
+        (row.completed_at - row.submitted_at).total_seconds()
+        for row in pairs
+        if row.submitted_at is not None and row.completed_at is not None
     ]
     avg_seconds = round(sum(durations) / len(durations), 1) if durations else None
 

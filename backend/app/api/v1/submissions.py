@@ -93,7 +93,8 @@ async def create_submission(
     existing = repo.get_by_hash(sha256)
     if existing is not None:
         response.status_code = status.HTTP_200_OK
-        log.info("submission.duplicate", submission_id=str(existing.id), sha256=sha256)
+        log.info("submission.duplicate", submission_id=str(existing.id), sha256=sha256,
+                 existing_status=existing.status)
         return SubmissionCreateResponse(
             id=existing.id, status=existing.status, sha256_hash=sha256
         )

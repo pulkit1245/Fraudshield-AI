@@ -85,7 +85,7 @@ def _mount_routers(app: FastAPI) -> None:
     app.include_router(dashboard.router, prefix=prefix)
 
     # Teammates' routers — mount if present (parallel-dev friendly).
-    for module_name in ("analysis", "clusters", "chat", "virustotal"):
+    for module_name in ("analysis", "clusters", "chat", "virustotal", "threat_intelligence"):
         try:  # pragma: no cover
             module = __import__(f"app.api.v1.{module_name}", fromlist=["router"])
             app.include_router(module.router, prefix=prefix)

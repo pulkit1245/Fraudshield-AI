@@ -31,6 +31,15 @@ const BEHAVIOUR_LABEL: Record<string, string> = {
   dynamic_code: "Dynamic code load",
 };
 
+const STATIC_LABEL: Record<string, string> = {
+  sms: "SMS Permission",
+  overlay: "Overlay API",
+  accessibility: "Accessibility API",
+  telephony: "Telephony API",
+  install: "Installer API",
+  dynamic_code: "DexClassLoader",
+};
+
 function buildStages(detail?: SubmissionDetail): SankeyStage[] {
   const graph = (detail?.static_finding?.api_call_graph ?? {}) as {
     sensitive_calls?: Record<string, number>;
@@ -38,9 +47,11 @@ function buildStages(detail?: SubmissionDetail): SankeyStage[] {
   const active = Object.entries(graph.sensitive_calls ?? {})
     .filter(([, v]) => v)
     .map(([k]) => k);
-  const staticNodes = active.length ? active.slice(0, 4) : ["static signals"];
+  const staticNodes = active.length
+    ? active.slice(0, 4).map((k) => STATIC_LABEL[k] ?? k.replace(/_/g, " "))
+    : ["static signals"];
   const behaviourNodes = active.length
-    ? active.slice(0, 4).map((k) => BEHAVIOUR_LABEL[k] ?? k)
+    ? active.slice(0, 4).map((k) => BEHAVIOUR_LABEL[k] ?? k.replace(/_/g, " "))
     : ["no behaviour"];
   const band = detail?.verdict?.severity_band ?? "verdict";
   return [

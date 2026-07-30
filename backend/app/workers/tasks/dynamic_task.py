@@ -11,6 +11,8 @@ Owner: Member C — Dynamic Analysis & Data Infra Engineer.
 """
 from __future__ import annotations
 
+import os
+
 from app.core.database import session_scope
 from app.core.logging import get_logger
 from app.services.dynamic_analysis_service import DynamicAnalysisService
@@ -37,14 +39,37 @@ def _static_finished(db, submission_id) -> bool:
     return row is not None
 
 
+# Max retries raised to 6: up to 3 waiting for static analysis in simulate mode,
+# plus the original 3 for actual analysis failures.
 @celery_app.task(
     name="app.workers.tasks.dynamic_task.run_dynamic_analysis",
-    bind=True, max_retries=3, default_retry_delay=15, acks_late=True,
+    bind=True, max_retries=6, default_retry_delay=15, acks_late=True,
     queue="dynamic_queue",
 )
 def run_dynamic_analysis(self, submission_id: str):
     log.info("dynamic_task.start", submission_id=submission_id)
     try:
+        # In simulate mode the sandbox derives findings from static signals.
+        # If static analysis hasn't written its row yet, retry after a short
+        # delay (up to 3 times) so the simulation has real data to work with.
+        sandbox_mode = os.getenv("SANDBOX_MODE", "simulate").lower()
+        if sandbox_mode == "simulate":
+            with session_scope() as db:
+                if not _static_finished(db, submission_id):
+                    wait_retries = self.request.retries  # retries so far
+                    if wait_retries < 3:
+                        log.info(
+                            "dynamic_task.waiting_for_static",
+                            submission_id=submission_id,
+                            retry=wait_retries,
+                        )
+                        raise self.retry(countdown=5)
+                    # After 3 waits, proceed anyway with whatever is available.
+                    log.warning(
+                        "dynamic_task.static_not_ready_proceeding",
+                        submission_id=submission_id,
+                    )
+
         with session_scope() as db:
             from app.repositories.submission_repository import SubmissionRepository
 
