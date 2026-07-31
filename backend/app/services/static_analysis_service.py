@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import get_logger
 from app.models.static_finding import StaticFinding
 from app.models.submission import Submission
+from app.services.threat_intelligence_service import ThreatIntelligenceService
 from app.static_analysis import (
     androguard_wrapper,
     apktool_wrapper,
@@ -54,7 +55,27 @@ class StaticAnalysisService:
             apk_path = self._materialize_apk(submission.storage_path, apk_path)
 
             # 1) Androguard — the authoritative extraction.
-            ag = androguard_wrapper.extract(apk_path)
+            #    Falls back to a resource-tolerant path for obfuscated/malware APKs
+            #    that corrupt their resources.arsc. See androguard_wrapper._load_apk.
+            intelligence = ThreatIntelligenceService(self.db)
+            try:
+                ag = androguard_wrapper.extract(
+                    apk_path, api_markers=intelligence.active_markers("api_signature")
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.error(
+                    "static.androguard_extract_failed",
+                    submission_id=str(submission_id),
+                    error=str(exc),
+                    detail="Persisting empty static finding so the pipeline can advance.",
+                )
+                ag = {}
+            permission_counts, permission_evidence = intelligence.match_values(
+                "permission", (ag.get("permissions") or {}).get("declared") or []
+            )
+            graph = ag.setdefault("api_call_graph", {})
+            graph["permission_rule_counts"] = permission_counts
+            graph.setdefault("rule_evidence", []).extend(permission_evidence)
 
             # 2/3) Apktool + JADX — structural + string signals (best-effort).
             apktool_stats = apktool_wrapper.decode(apk_path,

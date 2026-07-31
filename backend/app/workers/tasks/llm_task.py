@@ -42,5 +42,15 @@ def generate_report(self, submission_id: str):
         try:
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
-            # Leave status for manual retry; don't mark completed on report failure.
+            # Scoring already succeeded and a verdict exists; only the report
+            # generation failed. Mark the submission completed so it surfaces in
+            # the dashboard rather than being stuck in "scoring" forever.
+            try:
+                with session_scope() as db:
+                    from app.repositories.submission_repository import SubmissionRepository
+                    SubmissionRepository(db).update_status(
+                        submission_id, "completed", completed=True
+                    )
+            except Exception:  # noqa: BLE001
+                pass
             raise

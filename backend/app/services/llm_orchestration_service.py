@@ -47,7 +47,7 @@ class LLMOrchestrationService:
         self.db = db
         self.llm = llm or GeminiClient()
         self.sanitizer = SanitizationService(enable_llm_tier=False)
-        self.kb = get_knowledge_base()
+        self.kb = get_knowledge_base(db)
 
     def generate_report(self, submission_id: uuid.UUID | str) -> dict[str, Any]:
         submission_id = _as_uuid(submission_id)

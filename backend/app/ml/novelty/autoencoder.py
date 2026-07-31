@@ -16,6 +16,8 @@ Owner: Member B — AI/ML Engineer.
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 from app.core.logging import get_logger
@@ -146,7 +148,22 @@ _default: NoveltyDetector | None = None
 
 
 def _benign_reference(n: int = 600) -> np.ndarray:
-    """Synthetic benign reference set (mirrors train.py's benign class)."""
+    """Load real benign reference vectors if available, else fall back to synthetic.
+
+    Drop `benign_reference.npy` (shape: [N, N_FEATURES]) next to this file to
+    calibrate the novelty detector against real APK distributions instead of
+    synthetic ones. Export from Colab with: np.save('benign_reference.npy', X_benign)
+    """
+    ref_path = os.path.join(os.path.dirname(__file__), "benign_reference.npy")
+    if os.path.exists(ref_path):
+        data = np.load(ref_path)
+        log.info("novelty.reference_loaded", source="benign_reference.npy", n=len(data))
+        return data
+
+    # Fallback: synthetic benign corpus (biased — replace with real data ASAP).
+    log.warning("novelty.reference_synthetic",
+                msg="benign_reference.npy not found — using synthetic reference. "
+                    "Novelty scores on real APKs will be inflated.")
     from app.ml.classifier.train import _make_finding
     from app.ml.feature_spec import featurize
 
@@ -160,8 +177,12 @@ def _benign_reference(n: int = 600) -> np.ndarray:
 
 def get_default_detector() -> NoveltyDetector:
     global _default
-    if _default is None:
-        _default = NoveltyDetector(backend="auto").fit(_benign_reference())
+    if _default is not None:
+        return _default
+    with _default_lock:
+        # Double-checked locking: re-check after acquiring lock.
+        if _default is None:
+            _default = NoveltyDetector(backend="auto").fit(_benign_reference())
     return _default
 
 
