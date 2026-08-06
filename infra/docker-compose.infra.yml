@@ -1,0 +1,50 @@
+name: fraudshield-infra
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_USER: fraudshield
+      POSTGRES_PASSWORD: fraudshield
+      POSTGRES_DB: fraudshield
+    ports:
+      - "5433:5432"   # 5433 on host to avoid conflicts with local postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraudshield"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI → http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  storage-init:
+    image: busybox
+    user: root
+    command: sh -c "mkdir -p /tmp/fraudshield-storage/apks && chown -R 1000:1000 /tmp/fraudshield-storage"
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
+
+volumes:
+  pgdata:
+  apk_storage:

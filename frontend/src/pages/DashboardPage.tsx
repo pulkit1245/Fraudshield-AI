@@ -37,7 +37,11 @@ export default function DashboardPage() {
         <h1 className="text-lg font-bold text-gray-900">Analyst dashboard</h1>
         <div className="flex items-center gap-3">
           {upload.isPending && <span className="text-xs text-gray-500">Uploading…</span>}
-          {upload.isError && <span className="text-xs text-red-600">Upload failed</span>}
+          {upload.isError && (
+            <span className="max-w-xs truncate rounded bg-red-50 px-2 py-1 text-xs text-red-700 border border-red-200">
+              ⚠ Upload failed: {(upload.error as Error)?.message ?? "Unknown error"}
+            </span>
+          )}
           <input
             ref={fileRef} type="file" accept=".apk" onChange={onFileChange}
             className="hidden" id="apk-upload"
@@ -51,8 +55,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {stats.isError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <strong>Stats error:</strong> {(stats.error as Error)?.message ?? "Failed to load dashboard stats"}
+        </div>
+      )}
       {stats.data && <StatsPanel stats={stats.data} />}
 
+      {list.isError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <strong>Queue error:</strong> {(list.error as Error)?.message ?? "Failed to load submission queue"}
+        </div>
+      )}
       <QueueTable
         items={list.data?.items ?? []}
         total={list.data?.total ?? 0}

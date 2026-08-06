@@ -27,7 +27,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.security import get_current_user
-from app.llm.claude_client import ClaudeClient
+from app.llm.groq_client import GroqClient
 from app.llm.rag.knowledge_base import get_knowledge_base
 from app.models.static_finding import StaticFinding
 from app.models.user import User
@@ -156,7 +156,7 @@ def chat_with_apk(
         "obfuscation_score": static.obfuscation_score,
     }
     sanitized, _flags = _sanitizer.sanitize_findings(findings)
-    ttp_context = get_knowledge_base().retrieve(payload.message, k=3)
+    ttp_context = get_knowledge_base(db).retrieve(payload.message, k=3)
 
     reply = _answer(payload.message, sanitized, ttp_context)
     sources = [{"type": "static_findings", "package_name": sanitized.get("package_name")}]
@@ -168,26 +168,26 @@ def chat_with_apk(
 
 
 def _answer(message: str, sanitized: dict, ttp_context: list[dict]) -> str:
-    """Claude-grounded answer, or a deterministic grounded answer when offline."""
+    """Groq-grounded answer, or deterministic fallback when API is unavailable."""
     import json
 
-    claude = ClaudeClient()
+    groq = GroqClient()
     context = {"sanitized_findings": sanitized, "ttp_context": ttp_context}
-    if claude.is_available:
+    if groq.is_available:
         try:
-            loop = claude.run_agentic_loop(
+            loop = groq.run_agentic_loop(
                 system=CHAT_SYSTEM_PROMPT,
                 user_prompt=f"CONTEXT:\n{json.dumps(context, default=str)}\n\n"
                             f"QUESTION: {message}",
                 tools=[],
                 tool_dispatch=lambda n, a: {},
-                model=claude.choose_model(None),
+                model=groq.choose_model(None),
                 max_iters=1,
             )
             if loop["text"]:
                 return loop["text"]
         except Exception as exc:  # noqa: BLE001
-            log.warning("chat.claude_failed", error=str(exc))
+            log.warning("chat.groq_failed", error=str(exc))
 
     # Deterministic grounded fallback.
     perms = (sanitized.get("permissions") or {}).get("declared") or []
@@ -198,5 +198,5 @@ def _answer(message: str, sanitized: dict, ttp_context: list[dict]) -> str:
         f"Based on the sanitized findings, this sample declares {len(perms)} "
         f"permissions and shows activity in: {', '.join(active) or 'no high-risk buckets'}. "
         f"The most relevant fraud techniques are: {top}. "
-        f"(Offline grounded answer — connect the Claude API for a full conversational reply.)"
+        f"(Offline grounded answer — Groq API unavailable.)"
     )

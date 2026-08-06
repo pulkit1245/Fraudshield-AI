@@ -1,11 +1,41 @@
-# FraudShield AI — local development stack.
-# From repo root:  docker compose -f infra/docker-compose.yml up --build
+# FraudShield AI — full stack Docker Compose
+# Usage (from repo root):
+#   docker compose -f infra/docker-compose.yml up --build
 #
-# Brings up Postgres+pgvector, RabbitMQ, Redis, the FastAPI backend, the two
-# Celery worker fleets (static + dynamic), and the Vite frontend.
+# All services: Postgres, RabbitMQ, Redis, backend API, Celery workers, frontend (nginx)
 name: fraudshield
 
+# ── Shared env for every backend-derived service ────────────────────────────
+x-backend-env: &backend-env
+  ENVIRONMENT: development
+  DEBUG: "true"
+  DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
+  REDIS_URL: redis://redis:6379/0
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+  JWT_SECRET: 37368421e70e4df1568ee40de408600396abc02036349b17798766cdeaf150db
+  ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+  STORAGE_BUCKET: fraudshield-apks
+  STORAGE_KEY: ""
+  STORAGE_SECRET: ""
+  STORAGE_ENDPOINT_URL: ""
+  STORAGE_REGION: us-east-005
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+  SANDBOX_MODE: simulate
+  CORS_ORIGINS: "http://localhost:5173"
+
+x-backend-base: &backend-base
+  build:
+    context: ../backend
+    dockerfile: Dockerfile
+  volumes:
+    - apk_storage:/tmp/fraudshield-storage
+  restart: unless-stopped
+
 services:
+  # ── Infrastructure ──────────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg15
     environment:
@@ -13,7 +43,7 @@ services:
       POSTGRES_PASSWORD: fraudshield
       POSTGRES_DB: fraudshield
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,17 +51,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3.13-management
     ports:
       - "5672:5672"
-      - "15672:15672"   # management UI
+      - "15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 10s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -42,6 +74,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   storage-init:
     image: busybox
@@ -50,101 +83,92 @@ services:
     volumes:
       - apk_storage:/tmp/fraudshield-storage
 
+  # ── Backend API ─────────────────────────────────────────────────────────
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    <<: *backend-base
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
-    env_file:
-      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
-      CORS_ORIGINS: "http://localhost:5173"
+      <<: *backend-env
     ports:
       - "8000:8000"
-    volumes:
-      - apk_storage:/tmp/fraudshield-storage
     depends_on:
-      postgres: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
-      redis: { condition: service_healthy }
+      postgres:    { condition: service_healthy }
+      rabbitmq:    { condition: service_healthy }
+      redis:       { condition: service_healthy }
       storage-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
 
+  # ── Celery: static analysis queue ───────────────────────────────────────
   worker-static:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    command: celery -A app.workers.celery_app worker -Q static_queue -l info
-    env_file:
-      - ../.env
+    <<: *backend-base
+    command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
     environment:
-      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
-    volumes:
-      - apk_storage:/tmp/fraudshield-storage
+      <<: *backend-env
     depends_on:
-      backend: { condition: service_started }
+      backend:  { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
+  # ── Celery: dynamic analysis queue ──────────────────────────────────────
   worker-dynamic:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    command: celery -A app.workers.celery_app worker -Q dynamic_queue -c 1 -l info
-    env_file:
-      - ../.env
+    <<: *backend-base
+    command: celery -A app.workers.celery_app worker -Q dynamic_queue -l info --concurrency=1
     environment:
-      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
-      SANDBOX_MODE: simulate
-    volumes:
-      - apk_storage:/tmp/fraudshield-storage
+      <<: *backend-env
+      SANDBOX_MODE: live
+      # Connect to the Android emulator running on the host Mac via ADB-over-TCP.
+      # The emulator must be started on the host with: adb tcpip 5555
+      SANDBOX_ADB_HOST: "host.docker.internal:5555"
+      ADB_BIN: adb
     depends_on:
-      backend: { condition: service_started }
+      backend:  { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
+
+  # ── Celery Beat (scheduled tasks) ───────────────────────────────────────
   beat:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    <<: *backend-base
     command: celery -A app.workers.celery_app beat -l info
-    env_file:
-      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+      <<: *backend-env
     depends_on:
-      backend: { condition: service_started }
+      backend: { condition: service_healthy }
 
+  # ── Flower (Celery monitoring UI) ───────────────────────────────────────
   flower:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    <<: *backend-base
     command: celery -A app.workers.celery_app flower --port=5555
     environment:
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+      <<: *backend-env
     ports:
       - "5555:5555"
     depends_on:
       rabbitmq: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
+  # ── Frontend (Vite → nginx) ──────────────────────────────────────────────
   frontend:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "5173:80"
     depends_on:
-      backend: { condition: service_started }
+      backend: { condition: service_healthy }
+    restart: unless-stopped
 
 volumes:
   pgdata:
-  apk_storage:   # shared between backend + workers so uploaded APKs are accessible
+  apk_storage:

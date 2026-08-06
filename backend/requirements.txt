@@ -55,3 +55,4 @@ frida==16.4.8           # dynamic instrumentation (live sandbox mode only)
 pytest==8.2.2
 pytest-asyncio==0.23.7
 httpx==0.27.0
+groq==0.29.0

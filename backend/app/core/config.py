@@ -51,9 +51,10 @@ class Settings(BaseSettings):
     STORAGE_ENDPOINT_URL: str | None = Field(default=None)  # e.g. Backblaze B2 endpoint
     STORAGE_REGION: str = Field(default="us-east-005")
 
-    # ── External services ───────────────────────────────────────────────
-    GEMINI_API_KEY: str = Field(default="")        # Member B
-    CLAUDE_API_KEY: str = Field(default="")        # Member B
+    # ── External services ───────────────────────────────────────────
+    GROQ_API_KEY: str = Field(default="")          # Member B — primary LLM
+    GEMINI_API_KEY: str = Field(default="")        # Member B — fallback
+    CLAUDE_API_KEY: str = Field(default="")        # Member B — legacy
     VIRUSTOTAL_API_KEY: str = Field(default="")    # Member C
 
     # ── Upload limits ───────────────────────────────────────────────────

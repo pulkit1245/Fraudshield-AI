@@ -19,9 +19,10 @@ FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Runtime libs only (libpq for psycopg2; unzip/openjdk for apktool/jadx if used).
+# Runtime libs only (libpq for psycopg2; adb for live sandbox analysis).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    android-tools-adb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /wheels /wheels
@@ -33,6 +34,12 @@ COPY . .
 
 # Non-root runtime user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+
+# Bake the host ADB keypair in so the dynamic worker can authenticate to
+# the Android emulator over host.docker.internal:5555 without manual setup.
+COPY --chown=appuser:appuser adb_keys/adbkey     /home/appuser/.android/adbkey
+COPY --chown=appuser:appuser adb_keys/adbkey.pub /home/appuser/.android/adbkey.pub
+RUN chmod 600 /home/appuser/.android/adbkey
 
 
 

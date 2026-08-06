@@ -17,6 +17,7 @@ Owner: Member B — AI/ML Engineer.
 from __future__ import annotations
 
 import os
+import threading
 
 import numpy as np
 
@@ -145,6 +146,7 @@ class NoveltyDetector:
 
 # ── lazily-fitted process-wide default ──────────────────────────────────
 _default: NoveltyDetector | None = None
+_default_lock = threading.Lock()
 
 
 def _benign_reference(n: int = 600) -> np.ndarray:

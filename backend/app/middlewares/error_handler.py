@@ -63,11 +63,25 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def unhandled_exc_handler(request: Request, exc: Exception):
-        # Never leak internals to the client; full trace goes to structured logs.
+        import traceback
+        from app.core.config import settings
+
         log.error("unhandled_exception", error=str(exc), path=request.url.path, exc_info=exc)
+
+        # In development expose the real error so it surfaces in the UI for debugging.
+        if settings.ENVIRONMENT != "production":
+            tb = traceback.format_exc()
+            message = {
+                "exception": type(exc).__name__,
+                "detail": str(exc),
+                "traceback": tb.splitlines()[-8:],  # last 8 lines of traceback
+            }
+        else:
+            message = "An unexpected error occurred."
+
         return _envelope(
             "internal_error",
-            "An unexpected error occurred.",
+            message,
             _request_id(request),
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         )

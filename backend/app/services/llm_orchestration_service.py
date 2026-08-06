@@ -1,10 +1,10 @@
-"""LLM orchestration — sanitize → retrieve (RAG) → Claude → persist llm_report.
+"""LLM orchestration — sanitize → retrieve (RAG) → Groq → persist llm_report.
 
 Ties the AI pieces together for one submission:
   1. gather static (+ dynamic) findings,
   2. run them through the sanitization layer (records injection flags),
   3. retrieve relevant TTP context from the knowledge base,
-  4. produce a TTP mapping + analyst report via Claude's agentic tool-use loop
+  4. produce a TTP mapping + analyst report via Groq's tool-use loop
      (tiered model by risk), falling back to deterministic generation when the
      API is unavailable,
   5. persist to `llm_reports` and mark the submission completed.
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.llm.claude_client import get_analysis_tools
-from app.llm.gemini_client import GeminiClient
+from app.llm.groq_client import GroqClient
 from app.llm.prompts.report_prompt import (
     REPORT_SYSTEM_PROMPT,
     build_report_prompt,
@@ -43,9 +43,9 @@ log = get_logger(__name__)
 
 
 class LLMOrchestrationService:
-    def __init__(self, db: Session, llm: GeminiClient | None = None) -> None:
+    def __init__(self, db: Session, llm: GroqClient | None = None) -> None:
         self.db = db
-        self.llm = llm or GeminiClient()
+        self.llm = llm or GroqClient()
         self.sanitizer = SanitizationService(enable_llm_tier=False)
         self.kb = get_knowledge_base(db)
 
