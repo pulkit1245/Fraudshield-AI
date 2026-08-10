@@ -32,6 +32,9 @@ ADB_BIN       = os.getenv("ADB_BIN",      "adb")
 EMULATOR_BIN  = os.getenv("EMULATOR_BIN", "emulator")
 POOL_SIZE     = int(os.getenv("SANDBOX_POOL_SIZE", "1"))
 BOOT_TIMEOUT  = int(os.getenv("SANDBOX_BOOT_TIMEOUT", "180"))
+# Remote devices are already running, so they need far less than a cold boot —
+# but 10s is too tight for a busy emulator and produced spurious timeouts.
+REMOTE_BOOT_TIMEOUT = int(os.getenv("SANDBOX_REMOTE_BOOT_TIMEOUT", "90"))
 
 # When set, skip launching a local emulator and connect to this remote ADB host.
 # Example: SANDBOX_ADB_HOST=host.docker.internal:5555
@@ -91,6 +94,16 @@ class EmulatorPool:
             )
             output = result.stdout.strip()
             log.info("emulator.adb_connect_result", output=output)
+            if "failed to authenticate" in output.lower():
+                log.warning(
+                    "emulator.unauthorized",
+                    host=host,
+                    hint="Accept the 'Allow USB debugging?' prompt on the "
+                         "emulator and tick 'Always allow from this computer', "
+                         "then re-run. The worker's ADB public key must be in "
+                         "the device's /data/misc/adb/adb_keys.",
+                )
+                return False
             if "connected" not in output.lower() and "already connected" not in output.lower():
                 log.warning("emulator.remote_connect_failed", output=output)
                 return False
@@ -99,7 +112,7 @@ class EmulatorPool:
                 serial=host, avd_name="remote", console_port=0, remote=True
             )
             # Wait until device is online and booted.
-            self._wait_for_boot(host)
+            self._wait_for_boot(host, remote=True)
             self._harden_network(inst)
             self._available.put(inst)
             log.info("emulator.remote_ready", serial=host)
@@ -139,19 +152,38 @@ class EmulatorPool:
             return None
 
     # ── boot polling ──────────────────────────────────────────────────────
-    def _wait_for_boot(self, serial: str) -> None:
-        deadline = time.time() + BOOT_TIMEOUT
-        log.info("emulator.waiting_boot", serial=serial, timeout=BOOT_TIMEOUT)
+    def _wait_for_boot(self, serial: str, remote: bool = False) -> None:
+        timeout = REMOTE_BOOT_TIMEOUT if remote else BOOT_TIMEOUT
+        deadline = time.time() + timeout
+        log.info("emulator.waiting_boot", serial=serial, timeout=timeout)
         while time.time() < deadline:
             out = subprocess.run(
                 [ADB_BIN, "-s", serial, "shell", "getprop", "sys.boot_completed"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, timeout=5,
             )
             if out.stdout.strip() == "1":
                 log.info("emulator.boot_complete", serial=serial)
                 return
-            time.sleep(3)
-        raise TimeoutError(f"{serial} did not finish booting within {BOOT_TIMEOUT}s")
+
+            # An unauthorized device never answers getprop, so polling would
+            # burn the whole timeout and then report a misleading "did not
+            # finish booting". Detect it and say what actually needs doing:
+            # accept the "Allow USB debugging?" prompt on the emulator.
+            combined = f"{out.stdout} {out.stderr}".lower()
+            if "unauthorized" in combined:
+                raise RuntimeError(
+                    f"{serial} is connected but UNAUTHORIZED — accept the "
+                    f"'Allow USB debugging?' prompt on the emulator (tick "
+                    f"'Always allow from this computer'). The worker's ADB key "
+                    f"is not in the device's adb_keys."
+                )
+
+            # Fail fast if device is entirely unreachable for a remote connection
+            if remote and "device offline" in out.stderr.lower():
+                break
+
+            time.sleep(2)
+        raise TimeoutError(f"{serial} did not finish booting within {timeout}s")
 
     # ── network hardening ─────────────────────────────────────────────────
     def _harden_network(self, inst: EmulatorInstance) -> None:

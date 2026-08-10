@@ -45,6 +45,17 @@ RUN chmod 600 /home/appuser/.android/adbkey
 
 USER appuser
 
+# Re-serialize the classifier against the container's exact XGBoost version.
+# model.pkl (trained on real CICMalDroid2020 data, ROC-AUC 0.955) is the primary
+# artifact. We re-dump it via joblib so there's no cross-version pickle warning.
+# If the CSV training data is present we can retrain from scratch with train_real.py.
+RUN PYTHONPATH=/app python3 -c "\
+import joblib, warnings; \
+warnings.filterwarnings('ignore', category=UserWarning, module='xgboost'); \
+b = joblib.load('app/ml/classifier/model.pkl'); \
+joblib.dump(b, 'app/ml/classifier/model.pkl'); \
+print('model.pkl re-serialized:', b.get('model_version'))"
+
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0)" || exit 1

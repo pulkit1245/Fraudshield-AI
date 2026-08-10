@@ -36,6 +36,21 @@ export interface AccessToken {
   expires_in: number;
 }
 
+// ── analysis stages ───────────────────────────────────────────────────
+export interface AnalysisStage {
+  stage: string;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  started_at?: string | null;
+  completed_at?: string | null;
+  error_message?: string | null;
+  duration_ms?: number | null;
+}
+
+export interface StageDetail {
+  current_step: string;
+  step_description: string;
+}
+
 // ── submissions ───────────────────────────────────────────────────────
 export interface SubmissionSummary {
   id: string;
@@ -57,6 +72,20 @@ export interface SubmissionStatusResponse {
   id: string;
   status: SubmissionStatus;
   progress_pct: number;
+  stage_detail?: StageDetail | null;
+  analysis_stages?: AnalysisStage[] | null;
+}
+export interface DynamicFindingOut {
+  sms_access: boolean;
+  accessibility_abuse: boolean;
+  overlay_detected: boolean;
+  network_calls: unknown[];
+  sandbox_log_path?: string | null;
+  run_at: string;
+}
+export interface ClusterSummaryOut {
+  id: string;
+  cluster_name: string;
 }
 export interface StaticFindingOut {
   package_name?: string | null;
@@ -81,6 +110,8 @@ export interface SubmissionDetail {
   completed_at?: string | null;
   static_finding?: StaticFindingOut | null;
   verdict?: VerdictOut | null;
+  dynamic_finding?: DynamicFindingOut | null;
+  cluster?: ClusterSummaryOut | null;
 }
 
 // ── verdicts ──────────────────────────────────────────────────────────

@@ -68,7 +68,22 @@ def purge_expired_apks() -> dict:
         db.commit()
 
     log.info("retention.purge_complete", purged=purged, cutoff=cutoff.isoformat())
-    return {"purged": purged, "cutoff": cutoff.isoformat()}
+
+    # Purge old quarantine records.  These are diagnostic only; 90 days is
+    # more than sufficient for analysts to act on them.
+    with session_scope() as db:
+        from sqlalchemy import text as _text
+        result = db.execute(
+            _text(
+                "DELETE FROM ti_ingestion_quarantine "
+                "WHERE created_at < now() - interval '90 days'"
+            )
+        )
+        db.commit()
+        quarantine_purged = result.rowcount if result.rowcount is not None else 0
+    log.info("retention.quarantine_purge_complete", purged=quarantine_purged)
+
+    return {"purged": purged, "cutoff": cutoff.isoformat(), "quarantine_purged": quarantine_purged}
 
 
 @celery_app.task(name="app.workers.tasks.retention_task.recompute_clusters")

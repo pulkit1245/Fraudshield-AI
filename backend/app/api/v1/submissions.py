@@ -158,13 +158,22 @@ def get_submission_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.utils.stage_tracker import get_stage_detail
+
     repo = SubmissionRepository(db)
     sub = repo.get(submission_id)
     if sub is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Submission not found")
+    stage_detail = None
+    if sub.status in ("static_running", "dynamic_running", "scoring"):
+        stage_detail = get_stage_detail(str(submission_id))
     return SubmissionStatusResponse(
-        id=sub.id, status=sub.status, progress_pct=sub.progress_pct
+        id=sub.id,
+        status=sub.status,
+        progress_pct=sub.progress_pct,
+        stage_detail=stage_detail,
+        analysis_stages=sub.analysis_stages,
     )
 
 

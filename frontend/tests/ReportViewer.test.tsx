@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ReportViewer from "../src/components/ReportViewer/ReportViewer";
 import type { LLMReport, SubmissionDetail, Verdict } from "../src/types";
@@ -39,16 +39,19 @@ const report: LLMReport = {
 };
 
 describe("ReportViewer", () => {
-  it("renders filename, summary, band and recommended action", () => {
+  it("renders filename, severity band and recommended action", () => {
     render(<ReportViewer detail={detail} verdict={verdict} report={report} />);
     expect(screen.getByText("fraud-bank.apk")).toBeInTheDocument();
-    expect(screen.getByText(/intercepts SMS OTPs/i)).toBeInTheDocument();
+    // Severity badge is visible in the Security Summary header
     expect(screen.getByText("CRITICAL")).toBeInTheDocument();
-    expect(screen.getByText(/escalate cert in/i)).toBeInTheDocument();
+    expect(screen.getByText(/ESCALATE CERT IN/i)).toBeInTheDocument();
   });
 
-  it("renders TTP mapping cards", () => {
+  it("renders TTP mapping cards after opening the accordion", () => {
     render(<ReportViewer detail={detail} verdict={verdict} report={report} />);
+    // TTP section is an accordion — click to open it
+    const ttpBtn = screen.getByRole("button", { name: /TTP Mapping/i });
+    fireEvent.click(ttpBtn);
     expect(screen.getByText("SMS OTP Interception")).toBeInTheDocument();
     expect(screen.getByText("TTP-OTP-INTERCEPT")).toBeInTheDocument();
   });
@@ -67,6 +70,62 @@ describe("ReportViewer", () => {
 
   it("degrades gracefully when the verdict is pending", () => {
     render(<ReportViewer detail={detail} verdict={null} report={null} />);
-    expect(screen.getByText(/verdict pending/i)).toBeInTheDocument();
+    // The new summary text when no verdict is available
+    expect(
+      screen.getByText(/pending a final verdict|in progress/i)
+    ).toBeInTheDocument();
+  });
+
+  it("shows static analysis section (collapsed) when no static_finding", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={null} />);
+    expect(screen.getByRole("button", { name: /Static Analysis/i })).toBeInTheDocument();
+  });
+
+  it("shows runtime behaviour section (collapsed) when no dynamic_finding", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={null} />);
+    expect(screen.getByRole("button", { name: /Runtime Behaviour/i })).toBeInTheDocument();
+  });
+
+  it("shows analysis limitations section for partial analysis", () => {
+    render(
+      <ReportViewer
+        detail={detail}
+        verdict={verdict}
+        report={null}
+        overallState="PARTIALLY_COMPLETED"
+        issues={[{ stage: "Dynamic Analysis", status: "failed", error_message: "Sandbox unavailable" }]}
+      />
+    );
+    expect(screen.getByText(/Analysis Limitations/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dynamic Analysis/i)).toBeInTheDocument();
+  });
+
+  it("shows recommended action with description", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={null} />);
+    expect(screen.getByText(/ESCALATE CERT IN/i)).toBeInTheDocument();
+    expect(screen.getByText(/CERT-In for national incident/i)).toBeInTheDocument();
+  });
+
+  it("shows LLM summary when report has summary_text", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={report} />);
+    // LLM section is an accordion — open it
+    const llmBtn = screen.getByRole("button", { name: /LLM Security Assessment/i });
+    fireEvent.click(llmBtn);
+    expect(screen.getByText(/intercepts SMS OTPs/i)).toBeInTheDocument();
+  });
+
+  it("shows VirusTotal unavailable when no VT data passed", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={null} virustotal={null} />);
+    // Threat Intel section open it
+    const tiBtn = screen.getByRole("button", { name: /Threat Intelligence/i });
+    fireEvent.click(tiBtn);
+    expect(screen.getByText(/loading or unavailable/i)).toBeInTheDocument();
+  });
+
+  it("shows ML scoring unavailable when mlScore is null", () => {
+    render(<ReportViewer detail={detail} verdict={verdict} report={null} mlScore={null} />);
+    const mlBtn = screen.getByRole("button", { name: /ML Risk Assessment/i });
+    fireEvent.click(mlBtn);
+    expect(screen.getByText(/ML scoring data is unavailable/i)).toBeInTheDocument();
   });
 });

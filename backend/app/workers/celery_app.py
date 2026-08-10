@@ -35,6 +35,8 @@ celery_app = Celery(
         "app.workers.tasks.scoring_task",
         "app.workers.tasks.llm_task",
         "app.workers.tasks.retention_task",
+        # TI ingestion — Phase 1 addition
+        "app.workers.tasks.ti_ingestion_task",
     ],
 )
 
@@ -69,7 +71,8 @@ celery_app.conf.task_routes = {
     "app.workers.tasks.retention_task.*": {"queue": "static_queue"},
 }
 
-# Beat schedule — data-retention purge (Task 4) + periodic cluster recompute.
+# Beat schedule — data-retention purge (Task 4) + periodic cluster recompute
+# + TI ingestion (Phase 1 addition).
 celery_app.conf.beat_schedule = {
     "purge-expired-apks-daily": {
         "task": "app.workers.tasks.retention_task.purge_expired_apks",
@@ -78,6 +81,25 @@ celery_app.conf.beat_schedule = {
     "recompute-cluster-centroids-hourly": {
         "task": "app.workers.tasks.retention_task.recompute_clusters",
         "schedule": crontab(minute=0),
+    },
+    # MITRE ATT&CK for Mobile: quarterly releases; daily check at 2am UTC is
+    # sufficient and avoids peak-hour load on the GitHub CDN.
+    "ingest-mitre-attack-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_mitre_attack",
+        "schedule": crontab(hour=2, minute=0),
+        "options": {"queue": "static_queue"},
+    },
+    # MalwareBazaar: daily check at 2:30am UTC
+    "ingest-malwarebazaar-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_malwarebazaar",
+        "schedule": crontab(hour=2, minute=30),
+        "options": {"queue": "static_queue"},
+    },
+    # AlienVault OTX: daily check at 3am UTC
+    "ingest-otx-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_otx",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "static_queue"},
     },
 }
 

@@ -38,10 +38,17 @@ def run_scoring(self, submission_id: str):
         with session_scope() as db:
             from app.repositories.submission_repository import SubmissionRepository
 
-            SubmissionRepository(db).update_status(submission_id, "scoring")
+            repo = SubmissionRepository(db)
+            repo.update_status(submission_id, "scoring")
+            repo.update_analysis_stage(submission_id, "ML Risk Scoring", "running")
+
+        from app.utils.stage_tracker import set_stage_detail
+        set_stage_detail(submission_id, "computing risk score", "Running ML ensemble and calibrating final verdict.")
 
         with session_scope() as db:
             summary = ScoringService(db).score(submission_id)
+            from app.repositories.submission_repository import SubmissionRepository
+            SubmissionRepository(db).update_analysis_stage(submission_id, "ML Risk Scoring", "completed")
 
         _enqueue_llm(submission_id)
         log.info("scoring_task.done", submission_id=submission_id,
@@ -55,8 +62,12 @@ def run_scoring(self, submission_id: str):
             with session_scope() as db:
                 from app.repositories.submission_repository import SubmissionRepository
 
-                SubmissionRepository(db).update_status(
+                repo = SubmissionRepository(db)
+                repo.update_status(
                     submission_id, "failed", completed=True
+                )
+                repo.update_analysis_stage(
+                    submission_id, "ML Risk Scoring", "failed", error_message=str(exc)
                 )
             raise
 

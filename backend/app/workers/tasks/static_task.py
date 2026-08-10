@@ -80,10 +80,16 @@ def run_static_analysis(self, submission_id: str):
 
             repo = SubmissionRepository(db)
             repo.update_status(submission_id, "static_running")
+            repo.update_analysis_stage(submission_id, "Static Analysis", "running")
+
+        from app.utils.stage_tracker import set_stage_detail
+        set_stage_detail(submission_id, "extracting permissions", "Parsing APK manifest and permission declarations.")
 
         with session_scope() as db:
             service = StaticAnalysisService(db)
             service.analyze(submission_id)
+
+        set_stage_detail(submission_id, "parsing manifest", "Static analysis findings persisted.")
 
         # Advance the pipeline if the dynamic path is already done.
         with session_scope() as db:
@@ -93,6 +99,7 @@ def run_static_analysis(self, submission_id: str):
             if _dynamic_finished(db, submission_id):
                 repo.update_status(submission_id, "scoring")
                 _enqueue_scoring(submission_id)
+            repo.update_analysis_stage(submission_id, "Static Analysis", "completed")
 
         log.info("static_task.done", submission_id=submission_id)
         return {"submission_id": submission_id, "stage": "static_complete"}
@@ -107,6 +114,10 @@ def run_static_analysis(self, submission_id: str):
 
                 SubmissionRepository(db).update_status(
                     submission_id, "failed", completed=True
+                )
+                SubmissionRepository(db).update_analysis_stage(
+                    submission_id, "Static Analysis", "failed",
+                    error_message=str(exc)
                 )
             raise
 

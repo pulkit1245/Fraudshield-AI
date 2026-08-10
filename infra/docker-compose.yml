@@ -23,6 +23,8 @@ x-backend-env: &backend-env
   GROQ_API_KEY: ${GROQ_API_KEY:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+  OTX_API_KEY: ${OTX_API_KEY:-}
+  MALWAREBAZAAR_ENABLED: ${MALWAREBAZAAR_ENABLED:-true}
   SANDBOX_MODE: simulate
   CORS_ORIGINS: "http://localhost:5173"
 
@@ -111,6 +113,8 @@ services:
     command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
     environment:
       <<: *backend-env
+    healthcheck:
+      disable: true
     depends_on:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -127,10 +131,18 @@ services:
       # The emulator must be started on the host with: adb tcpip 5555
       SANDBOX_ADB_HOST: "host.docker.internal:5555"
       ADB_BIN: adb
+    healthcheck:
+      disable: true
     depends_on:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
+      # The worker must present the SAME ADB key the emulator has authorized.
+      # Read-only host mount — the key is never copied into the image.
+      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
+      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -141,6 +153,8 @@ services:
     command: celery -A app.workers.celery_app beat -l info
     environment:
       <<: *backend-env
+    healthcheck:
+      disable: true
     depends_on:
       backend: { condition: service_healthy }
 
@@ -150,6 +164,8 @@ services:
     command: celery -A app.workers.celery_app flower --port=5555
     environment:
       <<: *backend-env
+    healthcheck:
+      disable: true
     ports:
       - "5555:5555"
     depends_on:

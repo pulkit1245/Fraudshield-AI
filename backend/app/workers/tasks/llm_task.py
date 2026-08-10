@@ -34,7 +34,10 @@ def generate_report(self, submission_id: str):
     log.info("llm_task.start", submission_id=submission_id)
     try:
         with session_scope() as db:
+            from app.repositories.submission_repository import SubmissionRepository
+            SubmissionRepository(db).update_analysis_stage(submission_id, "LLM Security Report", "running")
             result = LLMOrchestrationService(db).generate_report(submission_id)
+            SubmissionRepository(db).update_analysis_stage(submission_id, "LLM Security Report", "completed")
         log.info("llm_task.done", submission_id=submission_id, model=result["model_used"])
         return result
     except Exception as exc:  # noqa: BLE001
@@ -48,9 +51,11 @@ def generate_report(self, submission_id: str):
             try:
                 with session_scope() as db:
                     from app.repositories.submission_repository import SubmissionRepository
-                    SubmissionRepository(db).update_status(
+                    repo = SubmissionRepository(db)
+                    repo.update_status(
                         submission_id, "completed", completed=True
                     )
+                    repo.update_analysis_stage(submission_id, "LLM Security Report", "failed", error_message=str(exc))
             except Exception:  # noqa: BLE001
                 pass
             raise

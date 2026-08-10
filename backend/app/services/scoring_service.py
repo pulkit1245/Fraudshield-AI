@@ -67,10 +67,38 @@ class ScoringService:
         # participate and the denominator is always 1.0. Previously dividing by
         # 0.85 (W_CLASSIFIER+W_NOVELTY+W_RULES) inflated scores by ~18%.
         vt = vt_signal if vt_signal is not None else 0.5
+
+        # Adaptive weighting: when heavy obfuscation is detected OR dangerous permission
+        # combos fired (classifier blind to API calls) AND the classifier scores near-zero,
+        # shift weight from the classifier to the rule-signal so that structural evidence
+        # (permission combos + API markers) still drives the verdict.
+        obfuscation = float(static_dict.get("obfuscation_score") or 0.0)
+        perm_combo_fired = bool(rule_detail.get("permission_combos_triggered"))
+        obfuscation_penalty = (
+            classifier_score < 0.10    # classifier can't see through obfuscation
+            and rule_signal > 0.0      # but we have structural evidence
+            and (
+                obfuscation >= 0.5     # explicit obfuscation detection, OR
+                or perm_combo_fired    # permission-combo fallback triggered
+            )
+        )
+        if obfuscation_penalty:
+            # Transfer 20 pp from classifier → rules; keep novelty/VT unchanged.
+            w_c = W_CLASSIFIER - 0.20
+            w_r = W_RULES + 0.20
+            log.info("scoring.adaptive_weights",
+                     reason="obfuscation_defeats_classifier",
+                     obfuscation_score=round(obfuscation, 3),
+                     perm_combo_fired=perm_combo_fired,
+                     classifier_score=round(classifier_score, 4),
+                     rule_signal=round(rule_signal, 4))
+        else:
+            w_c, w_r = W_CLASSIFIER, W_RULES
+
         final_100 = round(100.0 * (
-            W_CLASSIFIER * classifier_score
+            w_c * classifier_score
             + W_NOVELTY * nov
-            + W_RULES * rule_signal
+            + w_r * rule_signal
             + W_VT * vt
         ))
         final_100 = int(max(0, min(100, final_100)))
@@ -96,6 +124,13 @@ class ScoringService:
             "severity_band": band,
             "recommended_action": action,
             "model_version": infer.model_version(),
+            "obfuscation_penalty_applied": obfuscation_penalty,
+            "effective_weights": {
+                "classifier": round(w_c, 2),
+                "novelty": W_NOVELTY,
+                "rules": round(w_r, 2),
+                "vt": W_VT,
+            },
         }
         log.info("scoring.done", **{k: summary[k] for k in
                  ("submission_id", "final_risk_score", "severity_band")})
@@ -130,6 +165,8 @@ class ScoringService:
 
     # ── rule layer ──────────────────────────────────────────────────────
     def _rule_signal(self, static_dict: dict, dynamic_dict: dict | None) -> tuple[float, dict]:
+        from app.static_analysis.permission_extractor import permission_risk
+
         graph = static_dict.get("api_call_graph") or {}
         evidence = graph.get("rule_evidence") or []
         by_ttp: dict[str, list[dict]] = {}
@@ -149,6 +186,25 @@ class ScoringService:
             for items in corroborated.values()
         ) / 2.0)
 
+        # Permission-combo fallback: when API marker evidence is absent (e.g. because
+        # heavy obfuscation hides method names from Androguard), fall back to
+        # permission-combination analysis. RISKY_COMBOs were curated specifically for
+        # banking-fraud indicators (accessibility+overlay, SMS+install, etc.).
+        # Each triggered combo contributes 0.4 to the signal (capped at 1.0).
+        perms = (static_dict.get("permissions") or {}).get("declared") or []
+        perm_risk = permission_risk(perms)
+        combo_signal = min(1.0, len(perm_risk.get("risky_combos") or []) * 0.40)
+
+        # Only apply combo_signal when the marker engine produced nothing —
+        # avoid double-counting when both paths fire on the same APK.
+        if not evidence and combo_signal > 0:
+            signal = max(signal, combo_signal)
+            log.info(
+                "scoring.permission_combo_fallback",
+                triggered_combos=perm_risk.get("risky_combos"),
+                combo_signal=round(combo_signal, 3),
+            )
+
         dyn = dynamic_dict or {}
         dyn_flags = sum(
             1 for k in ("sms_access", "accessibility_abuse", "overlay_detected")
@@ -162,8 +218,11 @@ class ScoringService:
             "corroborated_ttps": sorted(corroborated),
             "evidence": evidence,
             "dynamic_flags_hit": dyn_flags,
+            "permission_combos_triggered": perm_risk.get("risky_combos") or [],
+            "permission_combo_signal": round(combo_signal, 3),
         }
         return signal, detail
+
 
     # ── persistence ─────────────────────────────────────────────────────
     def _persist_ml_score(self, submission_id: uuid.UUID, classifier_score: float,
