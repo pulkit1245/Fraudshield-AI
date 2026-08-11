@@ -18,6 +18,12 @@ from app.models.verdict import RiskVerdict  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.threat_intelligence import DetectionMarker, TTP  # noqa: F401
 
+# ── App Classification model (context-aware permission layer) ────────────
+try:
+    from app.models.app_classification import AppClassification  # noqa: F401
+except ImportError:
+    pass
+
 # ── Members B / C models (optional during parallel dev) ─────────────────
 try:  # pragma: no cover - depends on teammates' branches
     from app.models.dynamic_finding import DynamicFinding  # noqa: F401

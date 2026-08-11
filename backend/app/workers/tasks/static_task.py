@@ -86,19 +86,20 @@ def run_static_analysis(self, submission_id: str):
             service.analyze(submission_id)
 
         # Advance the pipeline if the dynamic path is already done.
-        with session_scope() as db:
-            from app.repositories.submission_repository import SubmissionRepository
+        _try_advance_pipeline(submission_id)
 
-            repo = SubmissionRepository(db)
-            if _dynamic_finished(db, submission_id):
-                repo.update_status(submission_id, "scoring")
-                _enqueue_scoring(submission_id)
+        # Enqueue app classification (context-aware permission layer).
+        # Non-blocking: failure here does not stop the existing pipeline.
+        _enqueue_classification(submission_id)
 
         log.info("static_task.done", submission_id=submission_id)
         return {"submission_id": submission_id, "stage": "static_complete"}
 
     except Exception as exc:  # noqa: BLE001
         log.error("static_task.failed", submission_id=submission_id, error=str(exc))
+        # Even on failure, try to advance the pipeline if dynamic is done and
+        # a static_findings row was persisted (e.g. by the soft-timeout handler).
+        _try_advance_pipeline(submission_id)
         try:
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
@@ -111,6 +112,21 @@ def run_static_analysis(self, submission_id: str):
             raise
 
 
+
+def _try_advance_pipeline(submission_id: str) -> None:
+    """Advance to scoring if the dynamic path is already done. Safe to call multiple times."""
+    try:
+        with session_scope() as db:
+            from app.repositories.submission_repository import SubmissionRepository
+
+            repo = SubmissionRepository(db)
+            if _dynamic_finished(db, submission_id):
+                repo.update_status(submission_id, "scoring")
+                _enqueue_scoring(submission_id)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("static.advance_pipeline_failed", submission_id=submission_id, error=str(exc))
+
+
 def _enqueue_scoring(submission_id: str) -> None:
     """Kick Member B's scoring/LLM chain by name (best-effort)."""
     try:
@@ -121,3 +137,17 @@ def _enqueue_scoring(submission_id: str) -> None:
         )
     except Exception as exc:  # noqa: BLE001
         log.debug("scoring.enqueue_skipped", submission_id=submission_id, error=str(exc))
+
+
+def _enqueue_classification(submission_id: str) -> None:
+    """Enqueue the app classification task (best-effort, non-blocking)."""
+    try:
+        get_celery_app().send_task(
+            "app.workers.tasks.classification_task.run_app_classification",
+            args=[submission_id],
+            queue="static_queue",
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.debug("classification.enqueue_skipped", submission_id=submission_id,
+                  error=str(exc))
+

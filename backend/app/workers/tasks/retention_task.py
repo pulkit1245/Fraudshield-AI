@@ -79,3 +79,54 @@ def recompute_clusters() -> dict:
 
         n = ClusteringService(db).recompute_all()
     return {"clusters_recomputed": n}
+
+
+@celery_app.task(name="app.workers.tasks.retention_task.recover_stuck_submissions")
+def recover_stuck_submissions() -> dict:
+    """Detect submissions stuck in intermediate states and advance their pipeline.
+
+    If a submission has been in ``static_running`` or ``dynamic_running`` for
+    more than ``STUCK_MINUTES`` and both analysis findings rows exist, advance
+    it to ``scoring`` and kick the scoring chain.  This handles the case where
+    a Celery worker was SIGKILL'd (hard time-limit) before it could run the
+    pipeline-advancement logic.
+    """
+    from datetime import datetime, timedelta, timezone as tz
+
+    from sqlalchemy import text
+
+    STUCK_MINUTES = 12  # slightly longer than the hard time limit (600s = 10 min)
+    cutoff = datetime.now(tz.utc) - timedelta(minutes=STUCK_MINUTES)
+    recovered = 0
+
+    with session_scope() as db:
+        stuck = db.execute(
+            text("""
+                SELECT s.id
+                  FROM apk_submissions s
+                 WHERE s.status IN ('static_running', 'dynamic_running')
+                   AND s.submitted_at < :cutoff
+                   AND s.deleted_at IS NULL
+                   AND EXISTS (SELECT 1 FROM static_findings  WHERE submission_id = s.id)
+                   AND EXISTS (SELECT 1 FROM dynamic_findings WHERE submission_id = s.id)
+            """),
+            {"cutoff": cutoff},
+        ).fetchall()
+
+        for (sid,) in stuck:
+            from app.repositories.submission_repository import SubmissionRepository
+
+            repo = SubmissionRepository(db)
+            repo.update_status(str(sid), "scoring")
+            log.info("retention.recovered_stuck", submission_id=str(sid))
+            try:
+                celery_app.send_task(
+                    "app.workers.tasks.scoring_task.run_scoring",
+                    args=[str(sid)], queue="static_queue",
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            recovered += 1
+
+    log.info("retention.recover_stuck_complete", recovered=recovered)
+    return {"recovered": recovered}

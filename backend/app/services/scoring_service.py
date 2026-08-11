@@ -31,11 +31,13 @@ from app.repositories.verdict_repository import VerdictRepository
 
 log = get_logger(__name__)
 
-# Ensemble weights (sum to 1.0).
-W_CLASSIFIER = 0.65
+# Ensemble weights (must sum to 1.0).
+# W_CONTEXT redistributes from W_RULES to keep the total at 1.0.
+W_CLASSIFIER = 0.60
 W_NOVELTY    = 0.15
 W_RULES      = 0.05
 W_VT         = 0.15
+W_CONTEXT    = 0.05  # context-aware permission anomaly (new layer)
 
 
 class ScoringService:
@@ -54,6 +56,9 @@ class ScoringService:
         static_dict = _static_to_dict(static)
         dynamic_dict = self._fetch_dynamic(submission_id)
 
+        # Context-aware permission policy score (new layer).
+        context_score, context_detail = self._context_signal(submission_id, static_dict)
+
         vector = featurize(static_dict, dynamic_dict)
         classifier_score = infer.predict(vector)
         nov = novelty_score(vector)
@@ -63,15 +68,15 @@ class ScoringService:
         model, _names = infer.get_model_and_features()
         shap = shap_utils.compute_contributions(model, vector)
 
-        # VT signal: use 0.5 (neutral) when absent so all 4 weights always
-        # participate and the denominator is always 1.0. Previously dividing by
-        # 0.85 (W_CLASSIFIER+W_NOVELTY+W_RULES) inflated scores by ~18%.
+        # VT signal: use 0.5 (neutral) when absent so all 5 weights always
+        # participate and the denominator is always 1.0.
         vt = vt_signal if vt_signal is not None else 0.5
         final_100 = round(100.0 * (
             W_CLASSIFIER * classifier_score
             + W_NOVELTY * nov
             + W_RULES * rule_signal
             + W_VT * vt
+            + W_CONTEXT * context_score
         ))
         final_100 = int(max(0, min(100, final_100)))
         band = severity_band(final_100)
@@ -91,7 +96,9 @@ class ScoringService:
             "novelty_score": round(nov, 4),
             "rule_signal": round(rule_signal, 4),
             "vt_signal": round(vt_signal, 4) if vt_signal is not None else None,
+            "context_score": round(context_score, 4),
             "rule_detail": rule_detail,
+            "context_detail": context_detail,
             "final_risk_score": final_100,
             "severity_band": band,
             "recommended_action": action,
@@ -100,6 +107,49 @@ class ScoringService:
         log.info("scoring.done", **{k: summary[k] for k in
                  ("submission_id", "final_risk_score", "severity_band")})
         return summary
+
+    # ── Context-aware policy signal ─────────────────────────────────────
+    def _context_signal(
+        self, submission_id: uuid.UUID, static_dict: dict
+    ) -> tuple[float, dict]:
+        """Return a [0, 1] context score from the permission policy engine.
+
+        If no classification exists, returns 0.0 (neutral) so the existing
+        scoring behaviour is fully preserved for unclassified APKs.
+        """
+        try:
+            from sqlalchemy import select as _select
+
+            from app.models.app_classification import AppClassification
+            from app.services.permission_policy_service import PermissionPolicyService
+
+            cls_row = self.db.execute(
+                _select(AppClassification).where(
+                    AppClassification.submission_id == submission_id
+                )
+            ).scalar_one_or_none()
+
+            if cls_row is None:
+                return 0.0, {"reason": "no_classification"}
+
+            declared = (static_dict.get("permissions") or {}).get("declared") or []
+            policy_result = PermissionPolicyService().evaluate(
+                category=cls_row.primary_category,
+                confidence=cls_row.confidence,
+                declared_permissions=declared,
+            )
+            detail = {
+                "category": cls_row.primary_category,
+                "category_confidence": cls_row.confidence,
+                "context_score": policy_result.context_score,
+                "anomaly_weight": policy_result.anomaly_weight,
+                "unexpected_permissions": policy_result.unexpected_permissions,
+                "missing_expected": policy_result.missing_expected_permissions,
+            }
+            return policy_result.context_score, detail
+        except Exception as exc:  # noqa: BLE001
+            log.warning("scoring.context_signal_failed", error=str(exc))
+            return 0.0, {"reason": "error", "error": str(exc)}
 
     # ── VT signal ────────────────────────────────────────────────────────
     def _vt_signal(self, submission_id: uuid.UUID) -> float | None:
@@ -118,7 +168,9 @@ class ScoringService:
             return 0.5
         r = row.vt_response
         if r.get("status") != "ok":
-            return 0.5   # not_configured / not_found / error → neutral
+            # not_found / not_configured / invalid_key / quota_exceeded / error
+            # → neutral. A VT outage must never look like a clean verdict.
+            return 0.5
         malicious  = int(r.get("malicious", 0))
         suspicious = int(r.get("suspicious", 0))
         harmless   = int(r.get("harmless", 0))

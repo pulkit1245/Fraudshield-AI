@@ -6,6 +6,12 @@
 name: fraudshield
 
 # ── Shared env for every backend-derived service ────────────────────────────
+# NOTE: these are *overrides* layered on top of the repo-root .env (wired in via
+# `env_file` on x-backend-base below). Anything listed here WINS over .env, so
+# only put values here that must differ inside Compose (e.g. service hostnames).
+# Never list a secret here with an empty default — `FOO: ${FOO:-}` resolves from
+# your *shell*, not from .env, and an empty result silently shadows the real
+# value in .env. That is exactly how VIRUSTOTAL_API_KEY became "".
 x-backend-env: &backend-env
   ENVIRONMENT: development
   DEBUG: "true"
@@ -16,13 +22,7 @@ x-backend-env: &backend-env
   ACCESS_TOKEN_EXPIRE_MINUTES: "15"
   REFRESH_TOKEN_EXPIRE_DAYS: "7"
   STORAGE_BUCKET: fraudshield-apks
-  STORAGE_KEY: ""
-  STORAGE_SECRET: ""
-  STORAGE_ENDPOINT_URL: ""
   STORAGE_REGION: us-east-005
-  GROQ_API_KEY: ${GROQ_API_KEY:-}
-  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
   SANDBOX_MODE: simulate
   CORS_ORIGINS: "http://localhost:5173"
 
@@ -30,6 +30,13 @@ x-backend-base: &backend-base
   build:
     context: ../backend
     dockerfile: Dockerfile
+  # Secrets (VIRUSTOTAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, STORAGE_*) come
+  # from here. Path is relative to this compose file, so ../.env == repo-root
+  # .env. `required: false` keeps a fresh clone (no .env yet) bootable on the
+  # pydantic defaults instead of hard-failing. Needs Compose >= 2.24.
+  env_file:
+    - path: ../.env
+      required: false
   volumes:
     - apk_storage:/tmp/fraudshield-storage
   restart: unless-stopped
@@ -109,6 +116,8 @@ services:
   worker-static:
     <<: *backend-base
     command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
+    healthcheck:
+      disable: true
     environment:
       <<: *backend-env
     depends_on:
@@ -120,9 +129,11 @@ services:
   worker-dynamic:
     <<: *backend-base
     command: celery -A app.workers.celery_app worker -Q dynamic_queue -l info --concurrency=1
+    healthcheck:
+      disable: true
     environment:
       <<: *backend-env
-      SANDBOX_MODE: live
+      SANDBOX_MODE: simulate
       # Connect to the Android emulator running on the host Mac via ADB-over-TCP.
       # The emulator must be started on the host with: adb tcpip 5555
       SANDBOX_ADB_HOST: "host.docker.internal:5555"
@@ -139,6 +150,8 @@ services:
   beat:
     <<: *backend-base
     command: celery -A app.workers.celery_app beat -l info
+    healthcheck:
+      disable: true
     environment:
       <<: *backend-env
     depends_on:
@@ -148,6 +161,12 @@ services:
   flower:
     <<: *backend-base
     command: celery -A app.workers.celery_app flower --port=5555
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     environment:
       <<: *backend-env
     ports:

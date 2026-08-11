@@ -35,6 +35,7 @@ celery_app = Celery(
         "app.workers.tasks.scoring_task",
         "app.workers.tasks.llm_task",
         "app.workers.tasks.retention_task",
+        "app.workers.tasks.classification_task",
     ],
 )
 
@@ -54,9 +55,10 @@ celery_app.conf.update(
         "*": {"max_retries": 3, "retry_backoff": True, "retry_backoff_max": 120,
               "retry_jitter": True},
     },
-    # Guard against a hung sandbox run.
-    task_time_limit=600,
-    task_soft_time_limit=540,
+    # Guard against a hung sandbox run.  Large APKs with many DEX files
+    # (e.g. 10+) can take 10-15 min for Androguard bytecode parsing.
+    task_time_limit=900,
+    task_soft_time_limit=840,
 )
 
 # Explicit queues + routing.
@@ -67,6 +69,7 @@ celery_app.conf.task_routes = {
     "app.workers.tasks.scoring_task.*": {"queue": "static_queue"},
     "app.workers.tasks.llm_task.*": {"queue": "static_queue"},
     "app.workers.tasks.retention_task.*": {"queue": "static_queue"},
+    "app.workers.tasks.classification_task.*": {"queue": "static_queue"},
 }
 
 # Beat schedule — data-retention purge (Task 4) + periodic cluster recompute.
@@ -78,6 +81,10 @@ celery_app.conf.beat_schedule = {
     "recompute-cluster-centroids-hourly": {
         "task": "app.workers.tasks.retention_task.recompute_clusters",
         "schedule": crontab(minute=0),
+    },
+    "recover-stuck-submissions": {
+        "task": "app.workers.tasks.retention_task.recover_stuck_submissions",
+        "schedule": crontab(minute="*/5"),
     },
 }
 

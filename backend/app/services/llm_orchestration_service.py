@@ -165,14 +165,64 @@ class LLMOrchestrationService:
     # ── data assembly / persistence ─────────────────────────────────────
     def _assemble_findings(self, static: StaticFinding, submission_id: uuid.UUID) -> dict:
         dynamic = self._fetch_dynamic(submission_id)
+        classification = self._fetch_classification(submission_id)
         return {
             "package_name": static.package_name,
             "permissions": static.permissions or {},
             "certificate_info": static.certificate_info or {},
             "api_call_graph": static.api_call_graph or {},
             "obfuscation_score": static.obfuscation_score,
+            "app_classification": classification,
             "_dynamic": dynamic or {},
         }
+
+    def _fetch_classification(self, submission_id: uuid.UUID) -> dict | None:
+        """Best-effort read of app_classifications (context-aware permission layer)."""
+        try:
+            from app.models.app_classification import AppClassification
+            from app.services.permission_policy_service import PermissionPolicyService
+
+            cls_row = self.db.execute(
+                select(AppClassification).where(
+                    AppClassification.submission_id == submission_id
+                )
+            ).scalar_one_or_none()
+            if cls_row is None:
+                return None
+
+            # Build policy context for inclusion in the LLM prompt.
+            static = self.db.execute(
+                select(StaticFinding).where(StaticFinding.submission_id == submission_id)
+            ).scalar_one_or_none()
+            declared = (static.permissions or {}).get("declared") or [] if static else []
+
+            policy = PermissionPolicyService().evaluate(
+                category=cls_row.primary_category,
+                confidence=cls_row.confidence,
+                declared_permissions=declared,
+            )
+            return {
+                "primary_category": cls_row.primary_category,
+                "secondary_categories": list(cls_row.secondary_categories or []),
+                "confidence": cls_row.confidence,
+                "reasoning": cls_row.reasoning,
+                "classified_by": cls_row.classified_by,
+                "expected_permissions": list(cls_row.expected_permissions or []),
+                "expected_behaviors": list(cls_row.expected_behaviors or []),
+                "unexpected_permission_examples": list(
+                    cls_row.unexpected_permission_examples or []
+                ),
+                "policy": {
+                    "unexpected_permissions": policy.unexpected_permissions,
+                    "missing_expected_permissions": policy.missing_expected_permissions,
+                    "unexpected_behaviors": policy.unexpected_behaviors,
+                    "context_score": policy.context_score,
+                    "permission_coverage": policy.permission_coverage,
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            log.warning("llm.classification_fetch_failed", error=str(exc))
+            return None
 
     def _ml_context(self, submission_id: uuid.UUID) -> dict:
         ml = self.db.execute(
