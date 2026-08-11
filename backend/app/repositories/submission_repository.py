@@ -13,6 +13,8 @@ from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.submission import Submission
 from app.models.verdict import RiskVerdict
@@ -98,6 +100,126 @@ class SubmissionRepository:
             sub.completed_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(sub)
+        return sub
+
+    def update_analysis_stage(
+        self,
+        submission_id: uuid.UUID | str,
+        stage: str,
+        status: str,
+        *,
+        error_message: Optional[str] = None,
+        duration_ms: Optional[int] = None
+    ) -> Optional[Submission]:
+        """Atomically update or append a specific analysis stage."""
+        if isinstance(submission_id, str):
+            submission_id = uuid.UUID(submission_id)
+            
+        # Row-level lock to prevent concurrent Celery tasks from overwriting JSONB
+        stmt = select(Submission).where(Submission.id == submission_id).with_for_update()
+        sub = self.db.execute(stmt).scalar_one_or_none()
+        if sub is None:
+            return None
+
+        # Convert to native list/dict if necessary and default to empty list
+        stages = []
+        if sub.analysis_stages:
+            stages = list(sub.analysis_stages)
+            
+        existing_idx = next((i for i, s in enumerate(stages) if s.get("stage") == stage), -1)
+        now = datetime.now(timezone.utc).isoformat()
+
+        stage_data = {
+            "stage": stage,
+            "status": status,
+        }
+
+        if existing_idx >= 0:
+            old_data = stages[existing_idx]
+            stage_data["started_at"] = old_data.get("started_at", now)
+            if status in ("completed", "failed", "skipped") and not old_data.get("completed_at"):
+                stage_data["completed_at"] = now
+            else:
+                stage_data["completed_at"] = old_data.get("completed_at")
+        else:
+            stage_data["started_at"] = now
+            if status in ("completed", "failed", "skipped"):
+                stage_data["completed_at"] = now
+
+        if error_message is not None:
+            stage_data["error_message"] = error_message
+        if duration_ms is not None:
+            stage_data["duration_ms"] = duration_ms
+
+        if existing_idx >= 0:
+            stages[existing_idx].update(stage_data)
+        else:
+            stages.append(stage_data)
+
+        sub.analysis_stages = stages
+        flag_modified(sub, "analysis_stages")
+        
+        self.db.commit()
+        return sub
+
+    def update_analysis_stage(
+        self,
+        submission_id: uuid.UUID | str,
+        stage: str,
+        status: str,
+        *,
+        error_message: Optional[str] = None,
+        duration_ms: Optional[int] = None
+    ) -> Optional[Submission]:
+        """Atomically update or append a specific analysis stage."""
+        if isinstance(submission_id, str):
+            submission_id = uuid.UUID(submission_id)
+            
+        # Row-level lock to prevent concurrent Celery tasks from overwriting JSONB
+        stmt = select(Submission).where(Submission.id == submission_id).with_for_update()
+        sub = self.db.execute(stmt).scalar_one_or_none()
+        if sub is None:
+            return None
+
+        # Convert to native list/dict if necessary and default to empty list
+        stages = []
+        if sub.analysis_stages:
+            stages = list(sub.analysis_stages)
+            
+        existing_idx = next((i for i, s in enumerate(stages) if s.get("stage") == stage), -1)
+        now = datetime.now(timezone.utc).isoformat()
+
+        stage_data = {
+            "stage": stage,
+            "status": status,
+        }
+
+        if existing_idx >= 0:
+            old_data = stages[existing_idx]
+            stage_data["started_at"] = old_data.get("started_at", now)
+            if status in ("completed", "failed", "skipped") and not old_data.get("completed_at"):
+                stage_data["completed_at"] = now
+            else:
+                stage_data["completed_at"] = old_data.get("completed_at")
+        else:
+            stage_data["started_at"] = now
+            if status in ("completed", "failed", "skipped"):
+                stage_data["completed_at"] = now
+
+        if error_message is not None:
+            stage_data["error_message"] = error_message
+        if duration_ms is not None:
+            stage_data["duration_ms"] = duration_ms
+
+        if existing_idx >= 0:
+            stages[existing_idx].update(stage_data)
+        else:
+            stages.append(stage_data)
+
+        sub.analysis_stages = stages
+        flag_modified(sub, "analysis_stages")
+        
+        self.db.commit()
         return sub
 
     def soft_delete(self, submission_id: uuid.UUID) -> bool:

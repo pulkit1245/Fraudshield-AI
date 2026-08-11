@@ -55,7 +55,15 @@
           "type": "string",
           "enum": ["queued", "static_running", "dynamic_running", "scoring", "completed", "failed"]
         },
-        "progress_pct": { "type": "integer", "minimum": 0, "maximum": 100 }
+        "progress_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "stage_detail": {
+          "type": ["object", "null"],
+          "description": "Human-readable detail for the currently active stage only; null when queued/completed/failed.",
+          "properties": {
+            "current_step": { "type": "string" },
+            "step_description": { "type": "string" }
+          }
+        }
       }
     },
     "SubmissionSummary": {

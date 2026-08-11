@@ -2,7 +2,9 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import StatsPanel from "../components/Dashboard/StatsPanel";
+import TIPipelinePanel from "../components/Dashboard/TIPipelinePanel";
 import QueueTable from "../components/SubmissionQueue/QueueTable";
+import { useAuth } from "../context/AuthContext";
 import {
   useDashboardStats,
   useSubmissionsList,
@@ -13,6 +15,7 @@ const PAGE_SIZE = 20;
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -61,6 +64,14 @@ export default function DashboardPage() {
         </div>
       )}
       {stats.data && <StatsPanel stats={stats.data} />}
+
+      {/* TI Pipeline fallback alerts — shown when a source had to use a
+          fallback strategy (e.g. TAXII instead of GitHub, source skipped due to
+          missing API key). Empty state shows ✅ when all is healthy.
+          Admin-only: GET /admin/threat-intelligence/pipeline/fallbacks requires
+          the admin role, so rendering this for analysts would only ever show an
+          error box. Same gating pattern as ClustersPage. */}
+      {user?.role === "admin" && <TIPipelinePanel />}
 
       {list.isError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

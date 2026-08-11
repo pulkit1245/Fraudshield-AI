@@ -73,19 +73,28 @@ def run_dynamic_analysis(self, submission_id: str):
         with session_scope() as db:
             from app.repositories.submission_repository import SubmissionRepository
 
-            SubmissionRepository(db).update_status(submission_id, "dynamic_running")
+            repo = SubmissionRepository(db)
+            repo.update_status(submission_id, "dynamic_running")
+            repo.update_analysis_stage(submission_id, "Dynamic Analysis", "running")
+
+        from app.utils.stage_tracker import set_stage_detail
+        set_stage_detail(submission_id, "running sandbox", "Executing APK in the dynamic analysis sandbox.")
 
         with session_scope() as db:
             DynamicAnalysisService(db).analyze(submission_id)
+
+        set_stage_detail(submission_id, "capturing syscalls", "Sandbox run complete, cross-checking with VirusTotal and clustering.")
 
         _side_lookups(submission_id)
 
         # Advance to scoring if static is already done.
         with session_scope() as db:
             from app.repositories.submission_repository import SubmissionRepository
+            repo = SubmissionRepository(db)
+            repo.update_analysis_stage(submission_id, "Dynamic Analysis", "completed")
 
             if _static_finished(db, submission_id):
-                SubmissionRepository(db).update_status(submission_id, "scoring")
+                repo.update_status(submission_id, "scoring")
                 _enqueue_scoring(submission_id)
 
         log.info("dynamic_task.done", submission_id=submission_id)
@@ -99,8 +108,13 @@ def run_dynamic_analysis(self, submission_id: str):
             with session_scope() as db:
                 from app.repositories.submission_repository import SubmissionRepository
 
-                SubmissionRepository(db).update_status(
+                repo = SubmissionRepository(db)
+                repo.update_status(
                     submission_id, "failed", completed=True
+                )
+                repo.update_analysis_stage(
+                    submission_id, "Dynamic Analysis", "failed",
+                    error_message=str(exc)
                 )
             raise
 
@@ -110,10 +124,20 @@ def _side_lookups(submission_id: str) -> None:
     try:
         with session_scope() as db:
             from app.services.virustotal_service import VirustotalService
-
+            from app.repositories.submission_repository import SubmissionRepository
+            
+            repo = SubmissionRepository(db)
+            repo.update_analysis_stage(submission_id, "Threat Intelligence", "running")
             VirustotalService(db).lookup(submission_id)
+            repo.update_analysis_stage(submission_id, "Threat Intelligence", "completed")
     except Exception as exc:  # noqa: BLE001
         log.debug("dynamic.vt_skipped", submission_id=submission_id, error=str(exc))
+        with session_scope() as db:
+            from app.repositories.submission_repository import SubmissionRepository
+            SubmissionRepository(db).update_analysis_stage(
+                submission_id, "Threat Intelligence", "failed",
+                error_message=str(exc)
+            )
     try:
         with session_scope() as db:
             from app.services.clustering_service import ClusteringService

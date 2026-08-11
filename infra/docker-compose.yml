@@ -12,6 +12,12 @@ name: fraudshield
 # Never list a secret here with an empty default — `FOO: ${FOO:-}` resolves from
 # your *shell*, not from .env, and an empty result silently shadows the real
 # value in .env. That is exactly how VIRUSTOTAL_API_KEY became "".
+#
+# This applies to the threat-intel settings too. GROQ_API_KEY, GEMINI_API_KEY,
+# VIRUSTOTAL_API_KEY, OTX_API_KEY and MALWAREBAZAAR_ENABLED are deliberately
+# NOT listed here — the TI fetchers read them with os.getenv() straight from the
+# container environment, which `env_file` already populates from the repo-root
+# .env (see .env.example for the full list and defaults).
 x-backend-env: &backend-env
   ENVIRONMENT: development
   DEBUG: "true"
@@ -30,10 +36,11 @@ x-backend-base: &backend-base
   build:
     context: ../backend
     dockerfile: Dockerfile
-  # Secrets (VIRUSTOTAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, STORAGE_*) come
-  # from here. Path is relative to this compose file, so ../.env == repo-root
-  # .env. `required: false` keeps a fresh clone (no .env yet) bootable on the
-  # pydantic defaults instead of hard-failing. Needs Compose >= 2.24.
+  # Secrets (VIRUSTOTAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, OTX_API_KEY,
+  # MALWAREBAZAAR_ENABLED, STORAGE_*) come from here. Path is relative to this
+  # compose file, so ../.env == repo-root .env. `required: false` keeps a fresh
+  # clone (no .env yet) bootable on the pydantic defaults instead of
+  # hard-failing. Needs Compose >= 2.24.
   env_file:
     - path: ../.env
       required: false
@@ -116,10 +123,12 @@ services:
   worker-static:
     <<: *backend-base
     command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
-    healthcheck:
-      disable: true
     environment:
       <<: *backend-env
+    # The backend image ships a HEALTHCHECK that curls :8000/health; a Celery
+    # worker serves no HTTP, so it would sit permanently "unhealthy".
+    healthcheck:
+      disable: true
     depends_on:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -129,8 +138,6 @@ services:
   worker-dynamic:
     <<: *backend-base
     command: celery -A app.workers.celery_app worker -Q dynamic_queue -l info --concurrency=1
-    healthcheck:
-      disable: true
     environment:
       <<: *backend-env
       SANDBOX_MODE: simulate
@@ -138,22 +145,31 @@ services:
       # The emulator must be started on the host with: adb tcpip 5555
       SANDBOX_ADB_HOST: "host.docker.internal:5555"
       ADB_BIN: adb
+    healthcheck:
+      disable: true
     depends_on:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    # NOTE: this list REPLACES the one from *backend-base (YAML merge keys do not
+    # concatenate sequences), so apk_storage must be repeated here.
+    volumes:
+      - apk_storage:/tmp/fraudshield-storage
+      # The worker must present the SAME ADB key the emulator has authorized.
+      # Read-only host mount — the key is never copied into the image.
+      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
+      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
 
   # ── Celery Beat (scheduled tasks) ───────────────────────────────────────
   beat:
     <<: *backend-base
     command: celery -A app.workers.celery_app beat -l info
-    healthcheck:
-      disable: true
     environment:
       <<: *backend-env
+    healthcheck:
+      disable: true
     depends_on:
       backend: { condition: service_healthy }
 
@@ -161,14 +177,16 @@ services:
   flower:
     <<: *backend-base
     command: celery -A app.workers.celery_app flower --port=5555
+    environment:
+      <<: *backend-env
+    # Flower *does* serve HTTP, so it gets a real probe on its own port rather
+    # than inheriting the image's :8000 check (which would never pass here).
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
       interval: 15s
       timeout: 5s
       start_period: 20s
       retries: 3
-    environment:
-      <<: *backend-env
     ports:
       - "5555:5555"
     depends_on:

@@ -3,7 +3,8 @@
 RabbitMQ broker + Redis result backend, with two queues so a slow sandbox run
 never blocks static-path throughput:
 
-    static_queue   → static analysis, scoring, LLM report, retention
+    static_queue   → static analysis, scoring, LLM report, retention,
+                     classification, threat-intel ingestion
     dynamic_queue  → dynamic sandbox analysis
 
 Members A and B resolve this app via `static_task.get_celery_app()`, which imports
@@ -36,6 +37,8 @@ celery_app = Celery(
         "app.workers.tasks.llm_task",
         "app.workers.tasks.retention_task",
         "app.workers.tasks.classification_task",
+        # TI ingestion — Phase 1 addition
+        "app.workers.tasks.ti_ingestion_task",
     ],
 )
 
@@ -70,9 +73,13 @@ celery_app.conf.task_routes = {
     "app.workers.tasks.llm_task.*": {"queue": "static_queue"},
     "app.workers.tasks.retention_task.*": {"queue": "static_queue"},
     "app.workers.tasks.classification_task.*": {"queue": "static_queue"},
+    # Keeps ad-hoc send_task/apply_async calls on the same queue the beat
+    # entries below pin explicitly.
+    "app.workers.tasks.ti_ingestion_task.*": {"queue": "static_queue"},
 }
 
-# Beat schedule — data-retention purge (Task 4) + periodic cluster recompute.
+# Beat schedule — data-retention purge (Task 4) + periodic cluster recompute
+# + stuck-submission recovery + TI ingestion (Phase 1 addition).
 celery_app.conf.beat_schedule = {
     "purge-expired-apks-daily": {
         "task": "app.workers.tasks.retention_task.purge_expired_apks",
@@ -85,6 +92,25 @@ celery_app.conf.beat_schedule = {
     "recover-stuck-submissions": {
         "task": "app.workers.tasks.retention_task.recover_stuck_submissions",
         "schedule": crontab(minute="*/5"),
+    },
+    # MITRE ATT&CK for Mobile: quarterly releases; daily check at 2am UTC is
+    # sufficient and avoids peak-hour load on the GitHub CDN.
+    "ingest-mitre-attack-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_mitre_attack",
+        "schedule": crontab(hour=2, minute=0),
+        "options": {"queue": "static_queue"},
+    },
+    # MalwareBazaar: daily check at 2:30am UTC
+    "ingest-malwarebazaar-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_malwarebazaar",
+        "schedule": crontab(hour=2, minute=30),
+        "options": {"queue": "static_queue"},
+    },
+    # AlienVault OTX: daily check at 3am UTC
+    "ingest-otx-daily": {
+        "task": "app.workers.tasks.ti_ingestion_task.ingest_otx",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "static_queue"},
     },
 }
 

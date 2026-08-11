@@ -9,7 +9,8 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CHAR, CheckConstraint, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import CHAR, CheckConstraint, DateTime, ForeignKey, JSON, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -54,6 +55,9 @@ class Submission(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    analysis_stages: Mapped[Optional[list[dict]]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True, default=list
+    )
 
     # Soft-delete marker (DELETE endpoint sets this; retention job purges bytes).
     deleted_at: Mapped[Optional[datetime]] = mapped_column(
@@ -62,13 +66,25 @@ class Submission(Base):
 
     # ── relationships ───────────────────────────────────────────────────
     uploader: Mapped["User"] = relationship(  # noqa: F821
-        "User", back_populates="submissions", lazy="joined"
+        "User", back_populates="submissions", lazy="selectin"
     )
     static_finding: Mapped[Optional["StaticFinding"]] = relationship(  # noqa: F821
         "StaticFinding", back_populates="submission", uselist=False, lazy="selectin"
     )
     verdict: Mapped[Optional["RiskVerdict"]] = relationship(  # noqa: F821
         "RiskVerdict", back_populates="submission", uselist=False, lazy="selectin"
+    )
+    dynamic_finding: Mapped[Optional["DynamicFinding"]] = relationship(  # noqa: F821
+        "DynamicFinding", back_populates="submission", uselist=False, lazy="selectin"
+    )
+    cluster: Mapped[Optional["CampaignCluster"]] = relationship(  # noqa: F821
+        "CampaignCluster",
+        secondary="cluster_members",
+        primaryjoin="Submission.id == ClusterMember.submission_id",
+        secondaryjoin="ClusterMember.cluster_id == CampaignCluster.id",
+        uselist=False,
+        lazy="selectin",
+        viewonly=True
     )
 
     @property

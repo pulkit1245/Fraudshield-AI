@@ -55,7 +55,10 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta,
     }
     if extra:
         payload.update(extra)
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    encoded = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    if isinstance(encoded, bytes):
+        return encoded.decode("utf-8")
+    return encoded
 
 
 def create_access_token(user: User) -> str:

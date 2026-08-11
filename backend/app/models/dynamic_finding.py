@@ -43,7 +43,7 @@ class DynamicFinding(Base):
     )
 
     submission: Mapped["Submission"] = relationship(  # noqa: F821
-        "Submission", lazy="joined", backref="dynamic_finding"
+        "Submission", lazy="joined", back_populates="dynamic_finding"
     )
 
     def __repr__(self) -> str:  # pragma: no cover

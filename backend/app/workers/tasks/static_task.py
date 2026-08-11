@@ -80,13 +80,24 @@ def run_static_analysis(self, submission_id: str):
 
             repo = SubmissionRepository(db)
             repo.update_status(submission_id, "static_running")
+            repo.update_analysis_stage(submission_id, "Static Analysis", "running")
+
+        from app.utils.stage_tracker import set_stage_detail
+        set_stage_detail(submission_id, "extracting permissions", "Parsing APK manifest and permission declarations.")
 
         with session_scope() as db:
             service = StaticAnalysisService(db)
             service.analyze(submission_id)
 
+        set_stage_detail(submission_id, "parsing manifest", "Static analysis findings persisted.")
+
         # Advance the pipeline if the dynamic path is already done.
         _try_advance_pipeline(submission_id)
+
+        # Stage bookkeeping is unconditional: the static leg is complete whether
+        # or not the dynamic leg has caught up yet. (In the pre-refactor code this
+        # lived inside the advance block but outside its `if`, so it always ran.)
+        _mark_stage_completed(submission_id)
 
         # Enqueue app classification (context-aware permission layer).
         # Non-blocking: failure here does not stop the existing pipeline.
@@ -109,6 +120,10 @@ def run_static_analysis(self, submission_id: str):
                 SubmissionRepository(db).update_status(
                     submission_id, "failed", completed=True
                 )
+                SubmissionRepository(db).update_analysis_stage(
+                    submission_id, "Static Analysis", "failed",
+                    error_message=str(exc)
+                )
             raise
 
 
@@ -125,6 +140,23 @@ def _try_advance_pipeline(submission_id: str) -> None:
                 _enqueue_scoring(submission_id)
     except Exception as exc:  # noqa: BLE001
         log.debug("static.advance_pipeline_failed", submission_id=submission_id, error=str(exc))
+
+
+def _mark_stage_completed(submission_id: str) -> None:
+    """Flag the 'Static Analysis' stage as completed (best-effort).
+
+    Kept separate from _try_advance_pipeline so a stage-tracking failure can never
+    block the scoring hand-off, and vice versa.
+    """
+    try:
+        with session_scope() as db:
+            from app.repositories.submission_repository import SubmissionRepository
+
+            SubmissionRepository(db).update_analysis_stage(
+                submission_id, "Static Analysis", "completed"
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.debug("static.stage_complete_failed", submission_id=submission_id, error=str(exc))
 
 
 def _enqueue_scoring(submission_id: str) -> None:

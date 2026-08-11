@@ -32,14 +32,20 @@ def load_bundle() -> dict[str, Any] | None:
         return _bundle
     _load_attempted = True
     try:
+        import warnings
         import joblib
 
-        _bundle = joblib.load(MODEL_PATH)
+        with warnings.catch_warnings():
+            # Suppress the harmless XGBoost pickle-vs-save_model advisory.
+            # The model is compatible; this is just a cross-version serialization note.
+            warnings.filterwarnings("ignore", category=UserWarning, module="xgboost")
+            _bundle = joblib.load(MODEL_PATH)
         log.info("classifier.loaded", version=_bundle.get("model_version"))
     except Exception as exc:  # noqa: BLE001
         log.warning("classifier.load_failed", error=str(exc))
         _bundle = None
     return _bundle
+
 
 
 def model_version() -> str:

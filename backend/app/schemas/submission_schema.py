@@ -19,10 +19,17 @@ class SubmissionCreateResponse(BaseModel):
     sha256_hash: str
 
 
+class StageDetail(BaseModel):
+    current_step: str
+    step_description: str
+
+
 class SubmissionStatusResponse(BaseModel):
     id: uuid.UUID
     status: str
     progress_pct: int
+    stage_detail: Optional[StageDetail] = None
+    analysis_stages: Optional[List[dict]] = None
 
 
 class SubmissionSummary(BaseModel):
@@ -63,6 +70,25 @@ class VerdictOut(BaseModel):
     analyst_override_score: Optional[int] = None
 
 
+class DynamicFindingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    sms_access: bool
+    accessibility_abuse: bool
+    overlay_detected: bool
+    network_calls: list[Any]
+    sandbox_log_path: Optional[str] = None
+    run_at: datetime
+
+
+class ClusterSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    cluster_name: str
+    # member_count is not directly on the CampaignCluster model, we can't trivially map it via from_attributes 
+    # unless we expose it as a property. Wait, CampaignCluster has `members: list[ClusterMember]`.
+    # Let's just expose `id` and `cluster_name` to avoid complex properties if it's expensive.
+
+
 class SubmissionDetail(BaseModel):
     """Full submission view (§5 GET /submissions/{id})."""
     model_config = ConfigDict(from_attributes=True)
@@ -75,6 +101,8 @@ class SubmissionDetail(BaseModel):
     completed_at: Optional[datetime] = None
     static_finding: Optional[StaticFindingOut] = None
     verdict: Optional[VerdictOut] = None
+    dynamic_finding: Optional[DynamicFindingOut] = None
+    cluster: Optional[ClusterSummary] = None
 
 
 # ── Query params ────────────────────────────────────────────────────────
