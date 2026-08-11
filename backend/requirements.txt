@@ -35,6 +35,7 @@ structlog==24.2.0
 
 # External
 requests==2.32.3
+PyYAML>=6.0.1             # permission_policies.yaml loading
 
 # ── AI / ML (Member B) ─────────────────────────────────────────────────
 numpy==1.26.4

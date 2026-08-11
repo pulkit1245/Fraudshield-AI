@@ -1,0 +1,670 @@
+# FraudShield AI — Permission Policy Configuration
+#
+# This YAML file is the single configurable source of truth for the
+# PermissionPolicyService. Each entry defines:
+#   - expected_permissions: permissions that are NORMAL for this app category
+#   - expected_behaviors:   runtime behaviors expected for this category
+#   - suspicious_permissions: permissions that are ANOMALOUS for this category
+#                             (raises the context_score)
+#   - suspicious_behaviors:  dynamic behaviors that are ANOMALOUS
+#
+# Weights:
+#   - Each suspicious_permission contributes its `weight` to the anomaly score.
+#   - The anomaly score is normalised to [0, 1] before injection into the
+#     ML scoring ensemble.
+#
+# Editing this file does NOT require a code deploy. The service reads it at
+# startup and caches it for the process lifetime.
+
+version: "1"
+
+categories:
+
+  Communication:
+    expected_permissions:
+      - READ_CONTACTS
+      - READ_SMS
+      - RECEIVE_SMS
+      - SEND_SMS
+      - CAMERA
+      - RECORD_AUDIO
+      - READ_CALL_LOG
+      - PROCESS_OUTGOING_CALLS
+      - READ_PHONE_STATE
+      - INTERNET
+    expected_behaviors:
+      - Background Messaging
+      - Contact Sync
+      - Voice Calls
+      - Video Calls
+      - SMS Reading
+      - Push Notifications
+    suspicious_permissions:
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.70
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.65
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.50
+    suspicious_behaviors:
+      - name: Overlay UI
+        weight: 0.60
+      - name: Silent Package Install
+        weight: 0.75
+      - name: Device Admin Activation
+        weight: 0.80
+
+  Banking:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - READ_SMS
+      - RECEIVE_SMS
+      - USE_BIOMETRIC
+      - USE_FINGERPRINT
+      - STORAGE
+    expected_behaviors:
+      - OTP Reading
+      - QR Scan
+      - Secure Storage
+      - Biometric Authentication
+      - Account Transactions
+    suspicious_permissions:
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.90
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.85
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.80
+      - name: QUERY_ALL_PACKAGES
+        weight: 0.60
+    suspicious_behaviors:
+      - name: Overlay Phishing
+        weight: 0.95
+      - name: Silent SMS Forwarding
+        weight: 0.90
+      - name: Accessibility Automation
+        weight: 0.90
+
+  Finance:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - READ_SMS
+      - RECEIVE_SMS
+      - USE_BIOMETRIC
+      - STORAGE
+    expected_behaviors:
+      - Payment Processing
+      - OTP Verification
+      - Account Statements
+      - Investment Tracking
+    suspicious_permissions:
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.85
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.80
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.75
+    suspicious_behaviors:
+      - name: Overlay Phishing
+        weight: 0.90
+      - name: Silent SMS Forwarding
+        weight: 0.85
+
+  Shopping:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - STORAGE
+      - ACCESS_FINE_LOCATION
+      - READ_CONTACTS
+    expected_behaviors:
+      - Product Browsing
+      - Cart Management
+      - Payment
+      - Barcode Scan
+      - Push Notifications
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.55
+      - name: READ_CALL_LOG
+        weight: 0.65
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.60
+      - name: Overlay UI
+        weight: 0.70
+      - name: Call Recording
+        weight: 0.75
+
+  Game:
+    expected_permissions:
+      - INTERNET
+      - VIBRATE
+      - STORAGE
+    expected_behaviors:
+      - Ads
+      - Leaderboard
+      - Game Save
+      - In-App Purchase
+      - Push Notifications
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.90
+      - name: RECEIVE_SMS
+        weight: 0.90
+      - name: READ_CALL_LOG
+        weight: 0.85
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.95
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.80
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.85
+      - name: READ_CONTACTS
+        weight: 0.75
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.90
+      - name: Call Log Access
+        weight: 0.85
+      - name: Accessibility Automation
+        weight: 0.95
+      - name: Overlay UI
+        weight: 0.80
+
+  Education:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+      - CAMERA
+      - RECORD_AUDIO
+    expected_behaviors:
+      - Video Lectures
+      - Quiz and Assessment
+      - Downloads
+      - Live Class
+      - Progress Tracking
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.80
+      - name: READ_CALL_LOG
+        weight: 0.75
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.85
+    suspicious_behaviors:
+      - name: SMS Monitoring
+        weight: 0.85
+      - name: Overlay Phishing
+        weight: 0.90
+
+  Health:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - STORAGE
+      - BODY_SENSORS
+      - ACCESS_FINE_LOCATION
+      - BLUETOOTH
+    expected_behaviors:
+      - Health Monitoring
+      - Doctor Consultation
+      - Medicine Reminders
+      - Report Storage
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.75
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.85
+    suspicious_behaviors:
+      - name: SMS Forwarding
+        weight: 0.80
+      - name: Device Admin Activation
+        weight: 0.90
+
+  Travel:
+    expected_permissions:
+      - INTERNET
+      - ACCESS_FINE_LOCATION
+      - STORAGE
+      - CAMERA
+    expected_behaviors:
+      - Booking
+      - Navigation
+      - Ticket Management
+      - Push Notifications
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.70
+      - name: READ_CALL_LOG
+        weight: 0.70
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.70
+      - name: Overlay Phishing
+        weight: 0.85
+
+  Maps:
+    expected_permissions:
+      - ACCESS_FINE_LOCATION
+      - ACCESS_COARSE_LOCATION
+      - INTERNET
+      - STORAGE
+      - CAMERA
+    expected_behaviors:
+      - Turn-by-Turn Navigation
+      - Search
+      - Real-Time Traffic
+      - Offline Maps
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.80
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.85
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.80
+      - name: Device Admin
+        weight: 0.90
+
+  Social Media:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - RECORD_AUDIO
+      - STORAGE
+      - READ_CONTACTS
+      - ACCESS_FINE_LOCATION
+    expected_behaviors:
+      - Feed
+      - Stories and Posts
+      - Direct Messaging
+      - Live Streaming
+      - Push Notifications
+    suspicious_permissions:
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.75
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.80
+    suspicious_behaviors:
+      - name: Overlay Phishing
+        weight: 0.85
+      - name: Silent Package Install
+        weight: 0.80
+
+  Video Streaming:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+    expected_behaviors:
+      - Stream Playback
+      - Download for Offline
+      - Subscription Management
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: READ_CALL_LOG
+        weight: 0.80
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.90
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Overlay UI
+        weight: 0.80
+
+  Utility:
+    expected_permissions:
+      - STORAGE
+      - INTERNET
+    expected_behaviors:
+      - Background Sync
+      - File Management
+      - System Optimisation
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.75
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.70
+    suspicious_behaviors:
+      - name: SMS Interception
+        weight: 0.80
+      - name: Overlay Phishing
+        weight: 0.85
+
+  System Tool:
+    expected_permissions:
+      - STORAGE
+      - INTERNET
+      - RECEIVE_BOOT_COMPLETED
+      - FOREGROUND_SERVICE
+    expected_behaviors:
+      - Background Services
+      - Device Monitoring
+      - System Cleanup
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.70
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.65
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.70
+      - name: Overlay Phishing
+        weight: 0.85
+
+  Productivity:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+      - CAMERA
+    expected_behaviors:
+      - Document Editing
+      - Cloud Sync
+      - Collaboration
+      - Calendar and Task Management
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.70
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.75
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.75
+      - name: Overlay Phishing
+        weight: 0.85
+
+  Photo Editing:
+    expected_permissions:
+      - CAMERA
+      - STORAGE
+      - INTERNET
+    expected_behaviors:
+      - Photo Capture
+      - Filter and Editing
+      - Share
+      - Cloud Backup
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: READ_CALL_LOG
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Call Monitoring
+        weight: 0.80
+
+  Music:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+      - RECORD_AUDIO
+    expected_behaviors:
+      - Streaming Playback
+      - Offline Downloads
+      - Playlist Management
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Overlay Phishing
+        weight: 0.85
+
+  File Manager:
+    expected_permissions:
+      - STORAGE
+      - INTERNET
+    expected_behaviors:
+      - File Browse and Copy
+      - Archive Extraction
+      - Cloud Drive Integration
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.80
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.80
+      - name: Overlay Phishing
+        weight: 0.85
+
+  VPN:
+    expected_permissions:
+      - INTERNET
+      - FOREGROUND_SERVICE
+    expected_behaviors:
+      - VPN Tunnel Establishment
+      - IP Masking
+      - Traffic Encryption
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.90
+      - name: READ_CONTACTS
+        weight: 0.80
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.85
+    suspicious_behaviors:
+      - name: SMS Interception
+        weight: 0.90
+      - name: Contact Harvesting
+        weight: 0.85
+
+  Browser:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+      - CAMERA
+      - ACCESS_FINE_LOCATION
+    expected_behaviors:
+      - Web Browsing
+      - Downloads
+      - Bookmarks
+      - Privacy Mode
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: READ_CALL_LOG
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Call Monitoring
+        weight: 0.80
+
+  Launcher:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+      - RECEIVE_BOOT_COMPLETED
+    expected_behaviors:
+      - Home Screen
+      - App Drawer
+      - Widget Support
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.75
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Overlay Phishing
+        weight: 0.90
+
+  Keyboard:
+    expected_permissions:
+      - INTERNET
+    expected_behaviors:
+      - Input Method Service
+      - Autocomplete
+      - Emoji and GIF
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.90
+      - name: READ_CALL_LOG
+        weight: 0.85
+      - name: READ_CONTACTS
+        weight: 0.80
+    suspicious_behaviors:
+      - name: Keylogging
+        weight: 0.95
+      - name: Clipboard Theft
+        weight: 0.90
+
+  News:
+    expected_permissions:
+      - INTERNET
+      - STORAGE
+    expected_behaviors:
+      - Article Feed
+      - Push Notifications
+      - Offline Reading
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.85
+      - name: READ_CALL_LOG
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.85
+      - name: Call Monitoring
+        weight: 0.80
+
+  Food Delivery:
+    expected_permissions:
+      - INTERNET
+      - ACCESS_FINE_LOCATION
+      - CAMERA
+      - STORAGE
+    expected_behaviors:
+      - Restaurant Browse
+      - Order Placement
+      - Live Tracking
+      - Payment
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.75
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Interception
+        weight: 0.75
+      - name: Overlay Phishing
+        weight: 0.85
+
+  Ride Sharing:
+    expected_permissions:
+      - INTERNET
+      - ACCESS_FINE_LOCATION
+      - CAMERA
+      - STORAGE
+    expected_behaviors:
+      - Ride Booking
+      - Real-Time Tracking
+      - Payment
+      - Driver Rating
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.75
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Reading
+        weight: 0.75
+      - name: Overlay Phishing
+        weight: 0.85
+
+  E-commerce:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - STORAGE
+      - ACCESS_FINE_LOCATION
+    expected_behaviors:
+      - Product Search
+      - Cart Management
+      - Checkout
+      - Order Tracking
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.60
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.80
+    suspicious_behaviors:
+      - name: SMS Interception
+        weight: 0.65
+      - name: Overlay Phishing
+        weight: 0.85
+
+  Crypto:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - USE_BIOMETRIC
+      - STORAGE
+    expected_behaviors:
+      - Wallet Management
+      - Trade Execution
+      - QR Scan
+      - Price Alerts
+    suspicious_permissions:
+      - name: READ_SMS
+        weight: 0.70
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.90
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.85
+    suspicious_behaviors:
+      - name: SMS OTP Theft
+        weight: 0.90
+      - name: Overlay Phishing
+        weight: 0.95
+
+  Government:
+    expected_permissions:
+      - INTERNET
+      - CAMERA
+      - STORAGE
+      - ACCESS_FINE_LOCATION
+    expected_behaviors:
+      - Document Verification
+      - Service Applications
+      - Aadhaar and KYC
+      - Grievance Filing
+    suspicious_permissions:
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.90
+      - name: REQUEST_INSTALL_PACKAGES
+        weight: 0.85
+    suspicious_behaviors:
+      - name: Overlay Phishing
+        weight: 0.90
+      - name: Silent Package Install
+        weight: 0.90
+
+  Other:
+    expected_permissions:
+      - INTERNET
+    expected_behaviors:
+      - General App Functionality
+    suspicious_permissions:
+      - name: BIND_ACCESSIBILITY_SERVICE
+        weight: 0.60
+      - name: SYSTEM_ALERT_WINDOW
+        weight: 0.55
+    suspicious_behaviors:
+      - name: Overlay Phishing
+        weight: 0.65
+      - name: Silent Package Install
+        weight: 0.70

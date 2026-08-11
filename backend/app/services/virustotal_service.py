@@ -2,14 +2,20 @@
 
 Looks up a submission's SHA-256 against VirusTotal v3, caches the response in
 Redis for 24h (quota conservation), and persists it to `virustotal_lookups`.
-Degrades cleanly: no API key → `not_configured`; unknown hash → `not_found`;
-network/HTTP error → `error` — never raises into the pipeline.
+Degrades cleanly, never raising into the pipeline. Statuses:
+  ok / not_found  — real verdicts, cached 24h
+  not_configured  — no API key in the environment
+  invalid_key     — VT returned 401/403
+  quota_exceeded  — VT returned 429
+  error           — network/HTTP failure
+Only `ok` and `not_found` are cached; failures must stay retryable.
 
 Owner: Member C — Dynamic Analysis & Data Infra Engineer.
 """
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from typing import Any, Optional
 
@@ -26,6 +32,13 @@ log = get_logger(__name__)
 VT_URL = "https://www.virustotal.com/api/v3/files/{sha256}"
 CACHE_TTL = 24 * 3600
 _CACHE_PREFIX = "vt:"
+
+# Only real verdicts are worth caching for 24h. Caching a transient failure
+# (bad key, quota exhausted, network blip) would pin VT "broken" for a full day
+# even after the underlying problem is fixed.
+_CACHEABLE = {"ok", "not_found"}
+
+_VT_KEY_RE = re.compile(r"^[0-9a-f]{64}$")
 
 _redis = None
 _redis_tried = False
@@ -64,18 +77,30 @@ class VirustotalService:
             return cached
 
         response = self._query_vt(sha256)
-        self._cache_set(sha256, response)
+        # Never cache failures — see _CACHEABLE.
+        if response.get("status") in _CACHEABLE:
+            self._cache_set(sha256, response)
         self._persist(submission_id, response)
         return response
 
     # ── VT call ─────────────────────────────────────────────────────────
     def _query_vt(self, sha256: str) -> dict[str, Any]:
-        api_key = (settings.VIRUSTOTAL_API_KEY or "").strip()
-        # Guard: strip any non-ASCII characters (e.g. inline comments with em-dashes
-        # that end up in the value when the .env line has a trailing comment).
-        api_key = api_key.encode("ascii", errors="ignore").decode("ascii").strip()
+        api_key = _clean_secret(settings.VIRUSTOTAL_API_KEY)
         if not api_key:
+            # Loud, because this is silent-degradation territory: the pipeline
+            # keeps running and the score just goes neutral, so a missing key
+            # otherwise looks like "VT says nothing suspicious".
+            log.warning(
+                "vt.not_configured",
+                hint="VIRUSTOTAL_API_KEY resolved empty in this process. Under "
+                     "Docker check that infra/docker-compose.yml does not set it "
+                     "to an empty value (that overrides env_file).",
+            )
             return {"status": "not_configured", "sha256": sha256}
+        if not _VT_KEY_RE.match(api_key):
+            # Don't hard-fail (VT could change format) but make it findable.
+            log.warning("vt.key_malformed", key_len=len(api_key),
+                        hint="expected 64 lowercase hex chars")
         try:
             import requests
 
@@ -86,6 +111,21 @@ class VirustotalService:
             )
             if resp.status_code == 404:
                 return {"status": "not_found", "sha256": sha256}
+            if resp.status_code in (401, 403):
+                log.error("vt.auth_failed", status=resp.status_code, key_len=len(api_key))
+                return {
+                    "status": "invalid_key",
+                    "sha256": sha256,
+                    "detail": f"VirusTotal rejected the API key (HTTP {resp.status_code})",
+                }
+            if resp.status_code == 429:
+                log.warning("vt.quota_exceeded")
+                return {
+                    "status": "quota_exceeded",
+                    "sha256": sha256,
+                    "detail": "VirusTotal quota exceeded (HTTP 429). Public keys "
+                              "allow 4 req/min and 500 req/day.",
+                }
             resp.raise_for_status()
             return self._summarize(sha256, resp.json())
         except Exception as exc:  # noqa: BLE001
@@ -141,6 +181,40 @@ class VirustotalService:
         self.db.commit()
         self.db.refresh(row)
         return row
+
+
+def _clean_secret(raw: str | None) -> str:
+    """Normalise a secret read from the environment.
+
+    Defends against the classic `.env` footgun where a trailing comment ends up
+    inside the value:
+
+        VIRUSTOTAL_API_KEY=abc123...        # Member C — hash cross-check
+
+    Compose V2 and python-dotenv both strip that comment themselves, but plenty
+    of other paths don't (a raw `export`, a CI secret pasted with its comment, a
+    k8s ConfigMap), and a key with a comment glued on fails as an opaque 401.
+    Belt-and-braces. We only strip from a `#` preceded by whitespace, so secrets
+    that legitimately contain `#` are left intact.
+    """
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    # A value that is *entirely* a comment means the key was never set, e.g.
+    # `CLAUDE_API_KEY=            # Member B — LLM orchestration`. Treat as unset.
+    if value.startswith("#"):
+        return ""
+    trimmed = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+    if trimmed != value:
+        log.warning(
+            "vt.key_had_inline_comment",
+            hint="Stripped a trailing '# ...' comment from VIRUSTOTAL_API_KEY. "
+                 "Move the comment to its own line in .env.",
+        )
+    # Quotes are stripped by dotenv but not by Compose's env_file parser.
+    if len(trimmed) >= 2 and trimmed[0] == trimmed[-1] and trimmed[0] in "\"'":
+        trimmed = trimmed[1:-1].strip()
+    return trimmed
 
 
 def _as_uuid(value: uuid.UUID | str) -> uuid.UUID:

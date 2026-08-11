@@ -207,7 +207,15 @@ export interface ClusterDetail {
   members: string[];
 }
 export interface VirusTotalResult {
-  status: "ok" | "not_found" | "not_configured" | "error";
+  // Mirrors VirustotalService statuses (backend/app/services/virustotal_service.py).
+  // Only "ok" carries detection counts; every other status scores as neutral.
+  status:
+    | "ok"
+    | "not_found"
+    | "not_configured"
+    | "invalid_key"
+    | "quota_exceeded"
+    | "error";
   sha256: string;
   malicious?: number;
   suspicious?: number;
@@ -215,6 +223,7 @@ export interface VirusTotalResult {
   undetected?: number;
   reputation?: number | null;
   meaningful_name?: string | null;
+  detail?: string;
 }
 
 // ── API error envelope ────────────────────────────────────────────────

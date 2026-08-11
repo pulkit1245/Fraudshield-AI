@@ -6,6 +6,18 @@
 name: fraudshield
 
 # ── Shared env for every backend-derived service ────────────────────────────
+# NOTE: these are *overrides* layered on top of the repo-root .env (wired in via
+# `env_file` on x-backend-base below). Anything listed here WINS over .env, so
+# only put values here that must differ inside Compose (e.g. service hostnames).
+# Never list a secret here with an empty default — `FOO: ${FOO:-}` resolves from
+# your *shell*, not from .env, and an empty result silently shadows the real
+# value in .env. That is exactly how VIRUSTOTAL_API_KEY became "".
+#
+# This applies to the threat-intel settings too. GROQ_API_KEY, GEMINI_API_KEY,
+# VIRUSTOTAL_API_KEY, OTX_API_KEY and MALWAREBAZAAR_ENABLED are deliberately
+# NOT listed here — the TI fetchers read them with os.getenv() straight from the
+# container environment, which `env_file` already populates from the repo-root
+# .env (see .env.example for the full list and defaults).
 x-backend-env: &backend-env
   ENVIRONMENT: development
   DEBUG: "true"
@@ -16,22 +28,22 @@ x-backend-env: &backend-env
   ACCESS_TOKEN_EXPIRE_MINUTES: "15"
   REFRESH_TOKEN_EXPIRE_DAYS: "7"
   STORAGE_BUCKET: fraudshield-apks
-  STORAGE_KEY: ""
-  STORAGE_SECRET: ""
-  STORAGE_ENDPOINT_URL: ""
   STORAGE_REGION: us-east-005
-  GROQ_API_KEY: ${GROQ_API_KEY:-}
-  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
-  OTX_API_KEY: ${OTX_API_KEY:-}
-  MALWAREBAZAAR_ENABLED: ${MALWAREBAZAAR_ENABLED:-true}
-  SANDBOX_MODE: simulate
+  SANDBOX_MODE: live
   CORS_ORIGINS: "http://localhost:5173"
 
 x-backend-base: &backend-base
   build:
     context: ../backend
     dockerfile: Dockerfile
+  # Secrets (VIRUSTOTAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, OTX_API_KEY,
+  # MALWAREBAZAAR_ENABLED, STORAGE_*) come from here. Path is relative to this
+  # compose file, so ../.env == repo-root .env. `required: false` keeps a fresh
+  # clone (no .env yet) bootable on the pydantic defaults instead of
+  # hard-failing. Needs Compose >= 2.24.
+  env_file:
+    - path: ../.env
+      required: false
   volumes:
     - apk_storage:/tmp/fraudshield-storage
   restart: unless-stopped
@@ -113,6 +125,8 @@ services:
     command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
     environment:
       <<: *backend-env
+    # The backend image ships a HEALTHCHECK that curls :8000/health; a Celery
+    # worker serves no HTTP, so it would sit permanently "unhealthy".
     healthcheck:
       disable: true
     depends_on:
@@ -137,6 +151,8 @@ services:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    # NOTE: this list REPLACES the one from *backend-base (YAML merge keys do not
+    # concatenate sequences), so apk_storage must be repeated here.
     volumes:
       - apk_storage:/tmp/fraudshield-storage
       # The worker must present the SAME ADB key the emulator has authorized.
@@ -145,7 +161,6 @@ services:
       - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
 
   # ── Celery Beat (scheduled tasks) ───────────────────────────────────────
   beat:
@@ -164,8 +179,14 @@ services:
     command: celery -A app.workers.celery_app flower --port=5555
     environment:
       <<: *backend-env
+    # Flower *does* serve HTTP, so it gets a real probe on its own port rather
+    # than inheriting the image's :8000 check (which would never pass here).
     healthcheck:
-      disable: true
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     ports:
       - "5555:5555"
     depends_on:

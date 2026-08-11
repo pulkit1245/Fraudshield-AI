@@ -92,5 +92,12 @@ def _mount_routers(app: FastAPI) -> None:
         except Exception:  # noqa: BLE001
             log.debug("router.skipped", module=module_name)
 
+    # App classification router (context-aware permission layer).
+    try:
+        from app.api.v1 import classification
+        app.include_router(classification.router, prefix=prefix)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("router.skipped", module="classification", error=str(exc))
+
 
 app = create_app()
