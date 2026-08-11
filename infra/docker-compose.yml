@@ -29,7 +29,7 @@ x-backend-env: &backend-env
   REFRESH_TOKEN_EXPIRE_DAYS: "7"
   STORAGE_BUCKET: fraudshield-apks
   STORAGE_REGION: us-east-005
-  SANDBOX_MODE: simulate
+  SANDBOX_MODE: live
   CORS_ORIGINS: "http://localhost:5173"
 
 x-backend-base: &backend-base
@@ -140,7 +140,7 @@ services:
     command: celery -A app.workers.celery_app worker -Q dynamic_queue -l info --concurrency=1
     environment:
       <<: *backend-env
-      SANDBOX_MODE: simulate
+      SANDBOX_MODE: live
       # Connect to the Android emulator running on the host Mac via ADB-over-TCP.
       # The emulator must be started on the host with: adb tcpip 5555
       SANDBOX_ADB_HOST: "host.docker.internal:5555"

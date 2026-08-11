@@ -1,7 +1,7 @@
 """Add analysis_stages to apk_submissions
 
 Revision ID: fc3b3e1b0973
-Revises: 0004
+Revises: 0006
 Create Date: 2026-08-09 16:00:19.943328
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'fc3b3e1b0973'
-down_revision: Union[str, None] = '0005'
+down_revision: Union[str, None] = '0006'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -20,8 +20,8 @@ from app.core.logging import get_logger
 log = get_logger(__name__)
 
 # Tiered Gemini models — flash for speed, pro for accuracy on high risk.
-FAST_MODEL  = "gemini-2.0-flash"
-STRONG_MODEL = "gemini-2.0-flash"  # Using flash for both to avoid free-tier Pro limits
+FAST_MODEL  = "gemini-3.5-flash"
+STRONG_MODEL = "gemini-3.5-flash"  # Using flash for both to avoid free-tier Pro limits
 ESCALATE_RISK_THRESHOLD = 0.6
 
 
