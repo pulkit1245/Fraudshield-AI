@@ -45,6 +45,14 @@ try:  # pragma: no cover
     from app.models.virustotal_lookup import VirustotalLookup  # noqa: F401
 except ImportError:
     pass
+try:  # pragma: no cover
+    from app.models.mutation import (  # noqa: F401
+        MalwareFamily,
+        FamilyMember,
+        MutationVariant,
+    )
+except ImportError:
+    pass
 
 __all__ = [
     "Base",
