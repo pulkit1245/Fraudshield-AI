@@ -32,12 +32,18 @@ from app.repositories.verdict_repository import VerdictRepository
 log = get_logger(__name__)
 
 # Ensemble weights (must sum to 1.0).
-# W_CONTEXT redistributes from W_RULES to keep the total at 1.0.
-W_CLASSIFIER = 0.60
-W_NOVELTY    = 0.15
+# W_FAMILY added in v2: takes 0.05 from W_CLASSIFIER (structural genome/mutation
+# match is a hard signal that should draw from the probabilistic classifier, not
+# from the heuristic rules or external VT oracle which are orthogonal) and 0.02
+# from W_NOVELTY (autoencoder recon error overlaps conceptually with family match).
+# W_RULES, W_VT, W_CONTEXT unchanged — they remain independently calibrated.
+# Sum: 0.55 + 0.13 + 0.05 + 0.15 + 0.05 + 0.07 = 1.00
+W_CLASSIFIER = 0.55
+W_NOVELTY    = 0.13
 W_RULES      = 0.05
 W_VT         = 0.15
-W_CONTEXT    = 0.05  # context-aware permission anomaly (new layer)
+W_CONTEXT    = 0.05  # context-aware permission anomaly
+W_FAMILY     = 0.07  # genome/mutation match signal (mutation engine)
 
 
 class ScoringService:
@@ -56,8 +62,10 @@ class ScoringService:
         static_dict = _static_to_dict(static)
         dynamic_dict = self._fetch_dynamic(submission_id)
 
-        # Context-aware permission policy score (new layer).
+        # Context-aware permission policy score.
         context_score, context_detail = self._context_signal(submission_id, static_dict)
+        # Family/mutation match score.
+        family_score, family_detail = self._family_signal(submission_id)
 
         vector = featurize(static_dict, dynamic_dict)
         classifier_score = infer.predict(vector)
@@ -105,6 +113,7 @@ class ScoringService:
             + w_r * rule_signal
             + W_VT * vt
             + W_CONTEXT * context_score
+            + W_FAMILY * family_score
         ))
         final_100 = int(max(0, min(100, final_100)))
         band = severity_band(final_100)
@@ -125,8 +134,10 @@ class ScoringService:
             "rule_signal": round(rule_signal, 4),
             "vt_signal": round(vt_signal, 4) if vt_signal is not None else None,
             "context_score": round(context_score, 4),
+            "family_score": round(family_score, 4),
             "rule_detail": rule_detail,
             "context_detail": context_detail,
+            "family_detail": family_detail,
             "final_risk_score": final_100,
             "severity_band": band,
             "recommended_action": action,
@@ -137,11 +148,42 @@ class ScoringService:
                 "novelty": W_NOVELTY,
                 "rules": round(w_r, 2),
                 "vt": W_VT,
+                "context": W_CONTEXT,
+                "family": W_FAMILY,
             },
         }
         log.info("scoring.done", **{k: summary[k] for k in
                  ("submission_id", "final_risk_score", "severity_band")})
         return summary
+
+    # ── Family / mutation-match signal ──────────────────────────────────
+    def _family_signal(
+        self, submission_id: uuid.UUID
+    ) -> tuple[float, dict]:
+        """Return a [0, 1] family/mutation match score from the mutation engine.
+
+        1.0 when the sample is an exact behavioral-hash match to a stored variant.
+        Otherwise the best cosine similarity score against family centroids and
+        stored variants. Returns 0.0 (neutral) when no families exist yet or when
+        the mutation engine raises an exception, so early-stage deployments with
+        no family database are fully backward-compatible.
+        """
+        try:
+            from app.services.mutation_engine_service import MutationEngineService
+
+            result = MutationEngineService(self.db).match_sample(submission_id)
+            score = float(result.get("similarity_score") or 0.0)
+            detail = {
+                "matched": result.get("matched", False),
+                "family_id": result.get("family_id"),
+                "matched_variant_id": result.get("matched_variant_id"),
+                "is_exact_hash_match": result.get("is_exact_hash_match", False),
+                "is_novel_family_candidate": result.get("is_novel_family_candidate", True),
+            }
+            return score, detail
+        except Exception as exc:  # noqa: BLE001
+            log.warning("scoring.family_signal_failed", error=str(exc))
+            return 0.0, {"reason": "error", "error": str(exc)}
 
     # ── Context-aware policy signal ─────────────────────────────────────
     def _context_signal(
