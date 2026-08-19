@@ -17,11 +17,13 @@ Owner: Member C — Dynamic Analysis & Data Infra Engineer.
 from __future__ import annotations
 
 import os
+import pathlib
 import queue
 import shutil
 import subprocess
 import threading
 import time
+import urllib.request
 from dataclasses import dataclass, field
 
 from app.core.logging import get_logger
@@ -36,10 +38,18 @@ BOOT_TIMEOUT  = int(os.getenv("SANDBOX_BOOT_TIMEOUT", "180"))
 # but 10s is too tight for a busy emulator and produced spurious timeouts.
 REMOTE_BOOT_TIMEOUT = int(os.getenv("SANDBOX_REMOTE_BOOT_TIMEOUT", "90"))
 
-# When set, skip launching a local emulator and connect to this remote ADB host.
-# Example: SANDBOX_ADB_HOST=host.docker.internal:5555
-SANDBOX_ADB_HOST: str | None = os.getenv("SANDBOX_ADB_HOST")
+# ── frida-server bootstrap ────────────────────────────────────────────────────
+# Downloaded once per container lifetime and cached at this path.
+# Failure is NON-FATAL — live analysis continues with logcat fallback.
+FRIDA_SERVER_CACHE_DIR = pathlib.Path(os.getenv("FRIDA_SERVER_CACHE", "/tmp/frida_server_cache"))
 
+# Android ABI  →  frida release arch suffix
+_ABI_TO_FRIDA_ARCH: dict[str, str] = {
+    "arm64-v8a":  "android-arm64",
+    "armeabi-v7a": "android-arm",
+    "x86_64":     "android-x86_64",
+    "x86":        "android-x86",
+}
 
 @dataclass
 class EmulatorInstance:
@@ -51,7 +61,7 @@ class EmulatorInstance:
 
 def is_available() -> bool:
     """True when ADB is reachable — either local binary or remote TCP host."""
-    if SANDBOX_ADB_HOST:
+    if os.getenv("SANDBOX_ADB_HOST") or os.getenv("SANDBOX_ADB_SERIAL"):
         # Remote mode: just need adb binary to talk to the remote device.
         return shutil.which(ADB_BIN) is not None
     return shutil.which(ADB_BIN) is not None and shutil.which(EMULATOR_BIN) is not None
@@ -76,14 +86,36 @@ class EmulatorPool:
         with self._lock:
             if self._started:
                 return True
-            if SANDBOX_ADB_HOST:
-                ok = self._connect_remote(SANDBOX_ADB_HOST)
+            sandbox_adb_serial = os.getenv("SANDBOX_ADB_SERIAL")
+            sandbox_adb_host = os.getenv("SANDBOX_ADB_HOST")
+            if sandbox_adb_serial:
+                ok = self._connect_serial(sandbox_adb_serial)
+            elif sandbox_adb_host:
+                ok = self._connect_remote(sandbox_adb_host)
             else:
                 ok = self._boot_local()
             self._started = self._available.qsize() > 0
             return ok
 
     # ── remote-ADB path ───────────────────────────────────────────────────
+    def _connect_serial(self, serial: str) -> bool:
+        """Connect to an already-multiplexed emulator via an existing ADB server."""
+        log.info("emulator.remote_serial", serial=serial)
+        inst = EmulatorInstance(
+            serial=serial, avd_name="remote", console_port=0, remote=True
+        )
+        try:
+            self._wait_for_boot(serial, remote=True)
+            self._harden_network(inst)
+            self._available.put(inst)
+            log.info("emulator.remote_serial_ready", serial=serial)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            from app.dynamic_analysis.containment import ContainmentError
+            if isinstance(exc, ContainmentError):
+                raise
+            log.warning("emulator.serial_connect_error", error=str(exc))
+            return False
     def _connect_remote(self, host: str) -> bool:
         """Connect to an already-running emulator over TCP ADB."""
         log.info("emulator.remote_connect", host=host)
@@ -118,6 +150,9 @@ class EmulatorPool:
             log.info("emulator.remote_ready", serial=host)
             return True
         except Exception as exc:  # noqa: BLE001
+            from app.dynamic_analysis.containment import ContainmentError
+            if isinstance(exc, ContainmentError):
+                raise
             log.warning("emulator.remote_connect_error", error=str(exc))
             return False
 
@@ -148,6 +183,9 @@ class EmulatorPool:
                 serial=serial, avd_name=self.avd_name, console_port=console_port
             )
         except Exception as exc:  # noqa: BLE001
+            from app.dynamic_analysis.containment import ContainmentError
+            if isinstance(exc, ContainmentError):
+                raise
             log.warning("emulator.boot_failed", port=console_port, error=str(exc))
             return None
 
@@ -185,15 +223,135 @@ class EmulatorPool:
             time.sleep(2)
         raise TimeoutError(f"{serial} did not finish booting within {timeout}s")
 
-    # ── network hardening ─────────────────────────────────────────────────
     def _harden_network(self, inst: EmulatorInstance) -> None:
-        """Disable real data/wifi — sample can only reach the ADB loopback sink."""
-        for args in (["svc", "data", "disable"], ["svc", "wifi", "disable"]):
-            subprocess.run(
-                [ADB_BIN, "-s", inst.serial, "shell", *args],
+        """Disable real data/wifi and verify containment."""
+        from app.dynamic_analysis.containment import harden_and_verify
+        report = harden_and_verify(inst.serial)
+        log.info("emulator.network_hardened", serial=inst.serial, method=report.method)
+        # Bootstrap frida-server AFTER network hardening so the emulator is
+        # fully ready.  Failure here is intentionally non-fatal.
+        self._bootstrap_frida(inst.serial)
+
+    # ── frida-server bootstrap ─────────────────────────────────────────────
+    def _bootstrap_frida(self, serial: str) -> None:
+        """Push and start frida-server on the emulator.  NON-FATAL.
+
+        Strategy:
+        1. If frida-server is already running, skip.
+        2. Detect the emulator ABI (arm64-v8a, x86_64, …).
+        3. Resolve the matching frida-server binary from FRIDA_SERVER_CACHE_DIR
+           (pre-placed by the operator) or download it from GitHub Releases for
+           the version that matches the installed frida Python package.
+        4. Push via ADB, chmod 755, start in background with nohup.
+        5. Any failure logs a WARNING and returns — the sandbox continues with
+           the logcat fallback; no exception is propagated.
+        """
+        from app.dynamic_analysis.frida_hooks import is_frida_server_running
+
+        try:
+            # ── 1. Already running? ──────────────────────────────────────
+            if is_frida_server_running(serial, ADB_BIN):
+                log.info("frida.server_already_running", serial=serial)
+                return
+
+            # ── 2. Detect ABI ────────────────────────────────────────────
+            abi_out = subprocess.run(
+                [ADB_BIN, "-s", serial, "shell", "getprop", "ro.product.cpu.abi"],
                 capture_output=True, text=True, timeout=10,
             )
-        log.info("emulator.network_hardened", serial=inst.serial)
+            abi = abi_out.stdout.strip()
+            frida_arch = _ABI_TO_FRIDA_ARCH.get(abi)
+            if not frida_arch:
+                log.warning(
+                    "frida.bootstrap_skip",
+                    reason=f"unsupported ABI: {abi!r}",
+                    serial=serial,
+                )
+                return
+
+            # ── 3. Resolve binary ────────────────────────────────────────
+            try:
+                import frida as _frida_pkg
+                frida_version = _frida_pkg.__version__
+            except ImportError:
+                log.warning("frida.bootstrap_skip",
+                            reason="frida Python package not installed",
+                            serial=serial)
+                return
+
+            binary_name = f"frida-server-{frida_version}-{frida_arch}"
+            FRIDA_SERVER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            local_path = FRIDA_SERVER_CACHE_DIR / binary_name
+
+            if not local_path.exists():
+                # Try downloading from GitHub Releases (compressed .xz)
+                xz_name   = binary_name + ".xz"
+                xz_path   = FRIDA_SERVER_CACHE_DIR / xz_name
+                url = (
+                    f"https://github.com/frida/frida/releases/download/"
+                    f"{frida_version}/{xz_name}"
+                )
+                log.info("frida.server_download", url=url, dest=str(xz_path))
+                try:
+                    urllib.request.urlretrieve(url, str(xz_path))
+                    # Decompress .xz  (lzma is stdlib)
+                    import lzma
+                    with lzma.open(str(xz_path)) as f_in, \
+                         open(str(local_path), "wb") as f_out:
+                        f_out.write(f_in.read())
+                    xz_path.unlink(missing_ok=True)
+                    log.info("frida.server_downloaded", path=str(local_path))
+                except Exception as dl_exc:  # noqa: BLE001
+                    log.warning(
+                        "frida.server_download_failed",
+                        url=url,
+                        error=str(dl_exc),
+                        serial=serial,
+                        hint="Pre-place frida-server binary in FRIDA_SERVER_CACHE dir "
+                             "or ensure the worker container has internet access. "
+                             "Live sandbox will fall back to logcat analysis.",
+                    )
+                    return
+
+            # ── 4. Push, chmod, start ────────────────────────────────────
+            device_path = f"/data/local/tmp/{binary_name}"
+            push = subprocess.run(
+                [ADB_BIN, "-s", serial, "push", str(local_path), device_path],
+                capture_output=True, text=True, timeout=60,
+            )
+            if push.returncode != 0:
+                log.warning("frida.server_push_failed",
+                            stderr=push.stderr.strip(), serial=serial)
+                return
+
+            subprocess.run(
+                [ADB_BIN, "-s", serial, "shell", "chmod", "755", device_path],
+                capture_output=True, timeout=10,
+            )
+            # Start in background — nohup + redirect stdout/stderr to /dev/null
+            subprocess.Popen(
+                [ADB_BIN, "-s", serial, "shell",
+                 f"nohup {device_path} > /dev/null 2>&1 &"],
+            )
+            # Give it a moment to start
+            time.sleep(1)
+
+            # ── 5. Verify it's up ────────────────────────────────────────
+            if is_frida_server_running(serial, ADB_BIN):
+                log.info("frida.server_started", serial=serial,
+                         version=frida_version, arch=frida_arch)
+            else:
+                log.warning("frida.server_start_unconfirmed", serial=serial,
+                            hint="frida-server may still be starting; "
+                                 "FridaRunner will retry on attach.")
+
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "frida.bootstrap_failed",
+                serial=serial,
+                error=str(exc),
+                hint="Live sandbox will use logcat fallback for behaviour detection.",
+            )
 
     # ── acquire / release ─────────────────────────────────────────────────
     def acquire(self, timeout: int = 180) -> EmulatorInstance:
@@ -202,12 +360,31 @@ class EmulatorPool:
         return self._available.get(timeout=timeout)
 
     def release(self, inst: EmulatorInstance) -> None:
-        if not inst.remote:
-            # Wipe installed packages between samples (local only).
-            subprocess.run(
-                [ADB_BIN, "-s", inst.serial, "shell", "pm", "clear-all"],
-                capture_output=True, text=True, timeout=30,
+        try:
+            # 1. Enumerate and uninstall 3rd party packages
+            out = subprocess.run(
+                [ADB_BIN, "-s", inst.serial, "shell", "pm", "list", "packages", "-3"],
+                capture_output=True, text=True, timeout=15, check=True
             )
+            for line in out.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("package:"):
+                    pkg = line.split(":", 1)[1]
+                    subprocess.run(
+                        [ADB_BIN, "-s", inst.serial, "shell", "pm", "uninstall", pkg],
+                        capture_output=True, text=True, timeout=15, check=True
+                    )
+            
+            # 2. Clean /data/local/tmp/*
+            subprocess.run(
+                [ADB_BIN, "-s", inst.serial, "shell", "rm -rf /data/local/tmp/*"],
+                capture_output=True, text=True, timeout=15, check=True
+            )
+        except Exception as exc:
+            log.error("emulator.cleanup_failed", serial=inst.serial, error=str(exc))
+            # Fail closed: Do NOT return a dirty emulator to the pool.
+            return
+            
         self._available.put(inst)
 
     def shutdown(self) -> None:

@@ -49,17 +49,23 @@ class SandboxManager:
                 try:
                     return self._run_mobsf(submission_id, apk_path)
                 except Exception as exc:  # noqa: BLE001
-                    log.warning("sandbox.mobsf_failed_simulate", error=str(exc))
+                    log.error("sandbox.mobsf_failed", error=str(exc))
+                    raise
             else:
                 log.warning("mobsf.unreachable",
                             url=os.getenv("MOBSF_URL", "http://localhost:8008"),
                             hint="Start MobSF: docker compose -f infra/docker-compose.yml up mobsf")
-        if self.mode == "live":
+                raise RuntimeError("MobSF is configured but unreachable")
+        elif self.mode == "live":
             try:
                 return self._run_live(submission_id, apk_path, package_name)
             except Exception as exc:  # noqa: BLE001
-                log.warning("sandbox.live_failed_simulate", error=str(exc))
-        return self._run_simulated(submission_id, static_hint or {})
+                log.error("sandbox.live_failed", error=str(exc))
+                raise
+        elif self.mode == "simulate":
+            return self._run_simulated(submission_id, static_hint or {})
+        else:
+            raise ValueError(f"Unknown sandbox mode: {self.mode}")
 
     # ── MobSF Docker sandbox path ────────────────────────────────────────
     def _run_mobsf(self, submission_id, apk_path: str) -> dict[str, Any]:
@@ -68,10 +74,6 @@ class SandboxManager:
         findings = self._mobsf.analyze(apk_path)
         b = findings.get("behaviours", {})
         network_calls = []
-        if b.get("sms_access") or b.get("call_intercept"):
-            network_calls = [
-                {"host": "c2-sink.mobsf", "port": 443, "protocol": "tcp", "sink": True},
-            ]
         log_blob = {
             "mode":         "mobsf",
             "package":      findings.get("package_name"),
@@ -94,9 +96,9 @@ class SandboxManager:
             "mobsf_findings":      findings,
         }
 
-    # ── live path (logcat-based, works on non-rooted emulators) ────────
+    # ── live path (Frida-primary, logcat fallback) ──────────────────────
     def _run_live(self, submission_id, apk_path, package_name) -> dict[str, Any]:
-        """Install APK on emulator, run it, capture logcat, then uninstall cleanly."""
+        """Install APK on emulator, instrument with Frida (logcat fallback), then uninstall."""
         inst = self._pool.acquire()
         pkg = package_name or self._infer_package(apk_path)
         try:
@@ -118,7 +120,7 @@ class SandboxManager:
             subprocess.run([ADB_BIN, "-s", inst.serial, "logcat", "-c"],
                            capture_output=True, timeout=5)
 
-            # 3. Launch the app
+            # 3. Launch the app via monkey
             subprocess.run(
                 [ADB_BIN, "-s", inst.serial, "shell",
                  "monkey", "-p", pkg, "-c",
@@ -127,25 +129,80 @@ class SandboxManager:
             )
             log.info("sandbox.live.launched", pkg=pkg, run_seconds=RUN_SECONDS)
 
-            # 4. Capture logcat for RUN_SECONDS
-            logcat_proc = subprocess.Popen(
-                [ADB_BIN, "-s", inst.serial, "logcat", "-v", "brief"],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-            )
-            time.sleep(RUN_SECONDS)
-            logcat_proc.terminate()
-            try:
-                logcat_output, _ = logcat_proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                logcat_proc.kill()
-                logcat_output = ""
+            # 4. Run Frida + AdbNetworkObserver concurrently for RUN_SECONDS
+            from app.dynamic_analysis.frida_hooks import FridaRunner, summarize_events
+            from app.dynamic_analysis.network_capture import AdbNetworkObserver
 
-            # 5. Parse logcat for behaviours
-            flags, network_calls, events = _parse_logcat(logcat_output, pkg)
-            log.info("sandbox.live.done", flags=flags, events=len(events))
+            frida_events: list[dict] = []
+            frida_error: Exception | None = None
+            logcat_output = ""
+
+            with AdbNetworkObserver(inst.serial, pkg, duration=RUN_SECONDS) as observer:
+                # ── Frida: primary path ──────────────────────────────────
+                try:
+                    runner = FridaRunner(inst.serial, pkg, run_seconds=RUN_SECONDS)
+                    frida_events = runner.run()   # blocks for RUN_SECONDS
+                    log.info(
+                        "sandbox.live.frida_done",
+                        pkg=pkg,
+                        event_count=len(frida_events),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    frida_error = exc
+                    log.warning(
+                        "sandbox.live.frida_failed",
+                        pkg=pkg,
+                        error=str(exc),
+                        fallback="logcat",
+                    )
+                    # ── Logcat: fallback path ────────────────────────────
+                    logcat_proc = subprocess.Popen(
+                        [ADB_BIN, "-s", inst.serial, "logcat", "-v", "brief"],
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                    )
+                    time.sleep(RUN_SECONDS)
+                    logcat_proc.terminate()
+                    try:
+                        logcat_output, _ = logcat_proc.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logcat_proc.kill()
+                        logcat_output = ""
+
+            observed_calls = observer.calls
+
+            # 5. Build flags from whichever source was available
+            if frida_error is None:
+                # Frida succeeded — use its summary
+                summary = summarize_events(frida_events)
+                flags = {
+                    "sms_access":          summary["sms_access"],
+                    "accessibility_abuse": summary["accessibility_abuse"],
+                    "overlay_detected":    summary["overlay_detected"],
+                }
+                events = frida_events
+                network_calls: list[dict] = []   # /proc/net covers this
+                frida_used = True
+                extended = {
+                    "clipboard_theft":       summary.get("clipboard_theft", False),
+                    "shell_exec_detected":   summary.get("shell_exec_detected", False),
+                    "package_enum_detected": summary.get("package_enum_detected", False),
+                }
+            else:
+                # Logcat fallback — parse regex patterns
+                flags, network_calls, events = _parse_logcat(logcat_output, pkg)
+                frida_used = False
+                extended = {}
+
+            log.info(
+                "sandbox.live.done",
+                flags=flags,
+                events=len(events),
+                frida_used=frida_used,
+                frida_error=str(frida_error) if frida_error else None,
+            )
 
         finally:
-            # 6. Clean up emulator
+            # 6. Clean up emulator — unchanged from Phase 4 baseline
             try:
                 subprocess.run([ADB_BIN, "-s", inst.serial, "shell",
                                 "am", "force-stop", pkg],
@@ -160,17 +217,25 @@ class SandboxManager:
         log_blob = {
             "mode": "live", "package": pkg,
             "run_seconds": RUN_SECONDS,
+            "frida_used": frida_used,
+            "frida_error": str(frida_error) if frida_error else None,
             "events": events, "network_calls": network_calls,
+            "observed_network_calls": observed_calls,
+            "extended": extended,
             "ts": time.time(),
         }
         log_path = self._store_log(submission_id, log_blob)
         return {
-            "sms_access":          flags["sms_access"],
-            "accessibility_abuse": flags["accessibility_abuse"],
-            "overlay_detected":    flags["overlay_detected"],
-            "network_calls":       network_calls,
-            "sandbox_log_path":    log_path,
-            "mode":                "live",
+            "sms_access":             flags["sms_access"],
+            "accessibility_abuse":    flags["accessibility_abuse"],
+            "overlay_detected":       flags["overlay_detected"],
+            "network_calls":          network_calls,
+            "observed_network_calls": observed_calls,
+            "sandbox_log_path":       log_path,
+            "mode":                   "live",
+            "frida_used":             frida_used,
+            "frida_error":            str(frida_error) if frida_error else None,
+            **extended,
         }
 
     def _infer_package(self, apk_path: str) -> str:
