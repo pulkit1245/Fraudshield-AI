@@ -42,6 +42,22 @@ celery_app = Celery(
     ],
 )
 
+# Apply connection-safety settings immediately after construction so they are
+# active before any lazy connection attempt (broker probe, result-backend ping).
+celery_app.conf.update(
+    broker_connection_retry_on_startup=False,
+    broker_connection_timeout=4,
+    broker_transport_options={"connect_timeout": 4},
+    # Redis result-backend: prevent hanging when Docker's wslrelay accepts the
+    # TCP connection but has no live container behind it.
+    result_backend_transport_options={
+        "socket_connect_timeout": 1,
+        "socket_timeout": 1,
+        "retry_on_timeout": False,
+    },
+)
+
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
@@ -62,6 +78,13 @@ celery_app.conf.update(
     # (e.g. 10+) can take 10-15 min for Androguard bytecode parsing.
     task_time_limit=900,
     task_soft_time_limit=840,
+    # ── Local-dev / startup safety ──────────────────────────────────────
+    # Don't block the API server if RabbitMQ/Redis aren't reachable at boot.
+    # Tasks will still be dispatched lazily once the broker becomes available.
+    broker_connection_retry_on_startup=False,
+    broker_connection_timeout=4,          # seconds before giving up a connect attempt
+    broker_transport_options={"connect_timeout": 4},
+    redis_socket_connect_timeout=4,
 )
 
 # Explicit queues + routing.

@@ -36,14 +36,111 @@ log = get_logger(__name__)
 # match is a hard signal that should draw from the probabilistic classifier, not
 # from the heuristic rules or external VT oracle which are orthogonal) and 0.02
 # from W_NOVELTY (autoencoder recon error overlaps conceptually with family match).
-# W_RULES, W_VT, W_CONTEXT unchanged — they remain independently calibrated.
-# Sum: 0.55 + 0.13 + 0.05 + 0.15 + 0.05 + 0.07 = 1.00
-W_CLASSIFIER = 0.55
-W_NOVELTY    = 0.13
-W_RULES      = 0.05
-W_VT         = 0.15
+#
+# v3 recalibration (scoring-accuracy fix). Evidence: a 5-APK run in which a
+# confirmed-malware sample (Accessibility+Overlay, a curated RISKY_COMBOS hit)
+# and a legitimate banking app landed 2 points apart. Measured causes:
+#
+#   1. novelty_score came back as exactly 1.0 on ALL SIX samples in that run, so
+#      the lane carried zero discriminative information while contributing a flat
+#      W_NOVELTY*1.0 = 13 pts to every APK. W_NOVELTY 0.13 -> 0.025 reflects its
+#      measured information content. THIS IS PROVISIONAL: the correct fix is to
+#      recalibrate the autoencoder's benign reference (see FIXME in
+#      app/ml/novelty/autoencoder.py) and then restore the weight.
+#   2. _vt_signal() returns 0.5 when VT data is absent, so an unqueried VT lane
+#      added a further flat W_VT*0.5 = 7.5 pts. Combined with (1) every APK
+#      started at 20.5/100 before any evidence was considered, which is what
+#      compressed the malicious/benign samples together. W_VT 0.15 -> 0.05 caps
+#      that neutral bias at 2.5 pts. The better long-term fix is to drop the VT
+#      lane and renormalize when VT is absent, rather than to weaken a lane that
+#      is genuinely informative when VT *does* have data.
+#   3. The classifier separated those two samples by only 0.07 (0.30 malicious vs
+#      0.23 benign), so at W_CLASSIFIER=0.55 it was the largest contributor while
+#      being close to uninformative. 0.55 -> 0.41.
+#
+# The 0.235 freed by (1)+(2) plus the 0.14 from (3) goes to W_RULES (0.05 ->
+# 0.395): the rule lane is the one carrying real per-sample structural evidence
+# (curated permission combos + corroborated API markers). W_CONTEXT and W_FAMILY
+# are unchanged — neither was implicated by this evidence.
+# W_CLASSIFIER remains the single largest weight (0.41 > 0.395).
+# Sum: 0.41 + 0.025 + 0.395 + 0.05 + 0.05 + 0.07 = 1.00
+W_CLASSIFIER = 0.41
+W_NOVELTY    = 0.025  # provisional: lane is saturated at 1.0, see note above
+W_RULES      = 0.395
+W_VT         = 0.05
 W_CONTEXT    = 0.05  # context-aware permission anomaly
 W_FAMILY     = 0.07  # genome/mutation match signal (mutation engine)
+
+# Upper bound of the "classifier is not making a confident malicious call" band,
+# used to decide when to transfer weight from the classifier to the rule signal.
+#
+# Derivation (not an arbitrary round number): the `medium` severity band starts at
+# final_100 = 25. If the classifier were the only contributing signal, the score it
+# would need to reach that boundary is 25 / (W_CLASSIFIER * 100) = 25 / 41 = 0.61.
+# Any classifier_score below that is, by the ensemble's own calibration, unable to
+# reach even the medium band on its own — i.e. not a confident malicious call.
+# 0.35 sits well below that equivalence point, so the transfer only engages while
+# the classifier is genuinely uninformative, never while it is making a call the
+# severity bands would treat as meaningful.
+#
+# The previous value of 0.10 only caught near-zero outputs, so a genuinely
+# borderline 0.30 (malware_v5.5) was treated identically to a confident 0.85
+# benign call and never yielded to strong structural evidence.
+CLASSIFIER_LOW_CONFIDENCE_MAX = 0.35
+
+# Weight transferred classifier -> rules when the classifier is uninformative but
+# structural evidence exists. Sized so the transfer cannot invert the ensemble:
+# it leaves W_CLASSIFIER - 0.20 = 0.21 on a lane that is, by construction, not
+# discriminating on this sample.
+CLASSIFIER_TO_RULES_TRANSFER = 0.20
+
+# Per-combo contribution for a RISKY_COMBOS hit, keyed by the frozenset of the
+# combo's permissions. The combo *definitions* live in
+# app.static_analysis.permission_extractor.RISKY_COMBOS and are not modified here —
+# this map only assigns how much each curated combo contributes to rule_signal.
+#
+# Previously every combo contributed a flat 0.40. That is too low for the
+# accessibility+overlay pair: one hit capped rule_signal at 0.40, which no weight
+# assignment summing to 1.0 could carry to the `high` band (>=50) without also
+# dragging the benign samples up. It also treated all three combos as equally
+# diagnostic, which they are not:
+#
+#   accessibility + overlay -> 0.85. The canonical Android banking-trojan
+#     signature: an accessibility service can read screen content and inject
+#     input, and an overlay window can cover the real app with a credential
+#     prompt. Together they are sufficient for full on-device fraud with no C2
+#     interaction, which is why Play Protect treats the pair as a red flag.
+#   receive_sms + overlay   -> 0.55. Overlay phishing plus OTP interception —
+#     strong, but SMS access alone is common in legitimate apps.
+#   read_sms + install      -> 0.55. OTP theft plus dropper capability.
+#
+# Unlisted combos fall back to _COMBO_SEVERITY_DEFAULT, so adding a new entry to
+# RISKY_COMBOS stays safe without touching this file.
+#
+# FALSE-POSITIVE NOTE: a legitimate accessibility tool (screen reader, password
+# manager) that also draws overlays will hit the 0.85 tier. The context lane
+# (_context_signal / PermissionPolicyService) is what is supposed to absorb that
+# by recognising the app's declared category — at W_CONTEXT=0.05 it currently
+# cannot fully offset it. Strengthening that lane is the tracked follow-up.
+_COMBO_SEVERITY: dict[frozenset[str], float] = {
+    frozenset({"android.permission.BIND_ACCESSIBILITY_SERVICE",
+               "android.permission.SYSTEM_ALERT_WINDOW"}): 0.85,
+    frozenset({"android.permission.RECEIVE_SMS",
+               "android.permission.SYSTEM_ALERT_WINDOW"}): 0.55,
+    frozenset({"android.permission.READ_SMS",
+               "android.permission.REQUEST_INSTALL_PACKAGES"}): 0.55,
+}
+_COMBO_SEVERITY_DEFAULT = 0.55
+
+# Permissions whose abuse only shows up under manual interaction, so a clean
+# automated sandbox run is not evidence of their absence (see _rule_signal).
+_MANUAL_TRIGGER_PERMISSIONS = frozenset({
+    "android.permission.BIND_ACCESSIBILITY_SERVICE",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.READ_SMS",
+    "android.permission.RECEIVE_SMS",
+    "android.permission.SEND_SMS",
+})
 
 
 class ScoringService:
@@ -80,24 +177,27 @@ class ScoringService:
         # participate and the denominator is always 1.0.
         vt = vt_signal if vt_signal is not None else 0.5
 
-        # Adaptive weighting: when heavy obfuscation is detected OR dangerous permission
-        # combos fired (classifier blind to API calls) AND the classifier scores near-zero,
-        # shift weight from the classifier to the rule-signal so that structural evidence
-        # (permission combos + API markers) still drives the verdict.
+        # Adaptive weighting: when heavy obfuscation is detected OR a curated
+        # permission combo fired (classifier blind to API calls) AND the classifier
+        # is not making a confident call, shift weight from the classifier to the
+        # rule-signal so that structural evidence (permission combos + corroborated
+        # API markers) still drives the verdict.
         obfuscation = float(static_dict.get("obfuscation_score") or 0.0)
         perm_combo_fired = bool(rule_detail.get("permission_combos_triggered"))
         obfuscation_penalty = (
-            classifier_score < 0.10    # classifier can't see through obfuscation
+            # classifier is not making a confident call (see derivation above)
+            classifier_score < CLASSIFIER_LOW_CONFIDENCE_MAX
             and rule_signal > 0.0      # but we have structural evidence
             and (
                 obfuscation >= 0.5     # explicit obfuscation detection, OR
-                or perm_combo_fired    # permission-combo fallback triggered
+                or perm_combo_fired    # curated permission-combo hit
             )
         )
         if obfuscation_penalty:
-            # Transfer 20 pp from classifier → rules; keep novelty/VT unchanged.
-            w_c = W_CLASSIFIER - 0.20
-            w_r = W_RULES + 0.20
+            # Transfer classifier → rules; novelty/VT/context/family unchanged, so
+            # the effective weights still sum to 1.0.
+            w_c = W_CLASSIFIER - CLASSIFIER_TO_RULES_TRANSFER
+            w_r = W_RULES + CLASSIFIER_TO_RULES_TRANSFER
             log.info("scoring.adaptive_weights",
                      reason="obfuscation_defeats_classifier",
                      obfuscation_score=round(obfuscation, 3),
@@ -138,15 +238,23 @@ class ScoringService:
             "rule_detail": rule_detail,
             "context_detail": context_detail,
             "family_detail": family_detail,
+            # Surfaced at top level for the UI/analyst view. Transparency only —
+            # never contributes to final_risk_score.
+            "dynamic_analysis_confidence": rule_detail.get("dynamic_analysis_confidence"),
             "final_risk_score": final_100,
             "severity_band": band,
             "recommended_action": action,
             "model_version": infer.model_version(),
             "obfuscation_penalty_applied": obfuscation_penalty,
+            # Rounded to 4dp, not 2dp: the v3 weights need 3 decimals (W_NOVELTY
+            # 0.025, W_RULES 0.395, and w_r 0.595 while the transfer is active).
+            # At 2dp the *reported* weights summed to 0.995 even though the weights
+            # actually used in final_100 summed to 1.0 — a display-only defect, but
+            # one that made the ensemble look unbalanced to anyone auditing this dict.
             "effective_weights": {
-                "classifier": round(w_c, 2),
+                "classifier": round(w_c, 4),
                 "novelty": W_NOVELTY,
-                "rules": round(w_r, 2),
+                "rules": round(w_r, 4),
                 "vt": W_VT,
                 "context": W_CONTEXT,
                 "family": W_FAMILY,
@@ -279,24 +387,45 @@ class ScoringService:
             max(float(item.get("severity", 0.0)) for item in items)
             for items in corroborated.values()
         ) / 2.0)
+        marker_signal = signal
 
-        # Permission-combo fallback: when API marker evidence is absent (e.g. because
-        # heavy obfuscation hides method names from Androguard), fall back to
-        # permission-combination analysis. RISKY_COMBOs were curated specifically for
-        # banking-fraud indicators (accessibility+overlay, SMS+install, etc.).
-        # Each triggered combo contributes 0.4 to the signal (capped at 1.0).
+        # Permission-combo lane. NOT a fallback — an independent evidence stream.
+        # RISKY_COMBOS were curated specifically for banking-fraud indicators
+        # (accessibility+overlay, SMS+install, etc.). Each triggered combo
+        # contributes its _COMBO_SEVERITY tier; multiple hits add, capped at 1.0.
         perms = (static_dict.get("permissions") or {}).get("declared") or []
         perm_risk = permission_risk(perms)
-        combo_signal = min(1.0, len(perm_risk.get("risky_combos") or []) * 0.40)
+        triggered_combos = perm_risk.get("risky_combos") or []
+        combo_signal = min(1.0, sum(
+            _COMBO_SEVERITY.get(frozenset(combo), _COMBO_SEVERITY_DEFAULT)
+            for combo in triggered_combos
+        ))
 
-        # Only apply combo_signal when the marker engine produced nothing —
-        # avoid double-counting when both paths fire on the same APK.
-        if not evidence and combo_signal > 0:
-            signal = max(signal, combo_signal)
+        # The combo lane is folded in unconditionally via max().
+        #
+        # It was previously gated behind `not evidence`, which meant that a single
+        # weak, uncorroborated API marker anywhere in the APK silently discarded a
+        # curated combo hit — even when the combo was the stronger, more specific
+        # indicator. That is exactly how malware_v5.5 (Accessibility+Overlay, a
+        # RISKY_COMBOS hit) came out with rule_signal=0.0.
+        #
+        # The combo lane also deliberately does NOT have to clear the 2-marker
+        # corroboration bar applied to `signal` above. That bar exists to stop a
+        # single incidental string or library match from producing a high-risk
+        # verdict, which is the right level of skepticism for a generic marker.
+        # A RISKY_COMBOS hit is not a generic marker: it requires two specific
+        # co-occurring permissions that are individually unremarkable but jointly
+        # diagnostic, so the combo already *is* its own corroboration. Requiring
+        # marker corroboration on top would be double-counting the same doubt.
+        # max() keeps the two lanes independent so neither can veto the other.
+        signal = max(signal, combo_signal)
+        if combo_signal > 0:
             log.info(
-                "scoring.permission_combo_fallback",
+                "scoring.permission_combo_signal",
                 triggered_combos=perm_risk.get("risky_combos"),
                 combo_signal=round(combo_signal, 3),
+                marker_signal=round(marker_signal, 3),
+                marker_evidence_present=bool(evidence),
             )
 
         dyn = dynamic_dict or {}
@@ -312,9 +441,43 @@ class ScoringService:
             "corroborated_ttps": sorted(corroborated),
             "evidence": evidence,
             "dynamic_flags_hit": dyn_flags,
-            "permission_combos_triggered": perm_risk.get("risky_combos") or [],
+            "permission_combos_triggered": triggered_combos,
             "permission_combo_signal": round(combo_signal, 3),
+            "marker_signal": round(marker_signal, 3),
         }
+
+        # Transparency only — deliberately does NOT touch `signal`.
+        #
+        # dyn_flags == 0 means the sandbox observed nothing, which is the correct
+        # 0 contribution for an unobserved signal (same rationale as VT's neutral
+        # 0.5). But the automated run is short and does not perform the manual
+        # interaction that accessibility/overlay/SMS payloads typically wait for,
+        # so "nothing observed" is not the same as "nothing there". When the app
+        # declares one of those permissions and the sandbox came back clean, say
+        # so explicitly, otherwise an analyst reading a clean dynamic section may
+        # take it as reassurance that the structural evidence is a false positive.
+        declared_manual_triggers = sorted(set(perms) & _MANUAL_TRIGGER_PERMISSIONS)
+        if dyn_flags == 0 and declared_manual_triggers:
+            detail["dynamic_analysis_confidence"] = {
+                "level": "inconclusive",
+                "reason": "no_dynamic_observation_despite_abusable_permissions",
+                "declared_manual_trigger_permissions": declared_manual_triggers,
+                "note": (
+                    "Sandbox observed no SMS/accessibility/overlay behaviour, but the "
+                    "app declares permissions whose abuse generally requires manual "
+                    "interaction to trigger. Absence of dynamic evidence is not "
+                    "evidence of absence — weigh the structural findings above."
+                ),
+                "affects_score": False,
+            }
+        elif dyn_flags == 0:
+            detail["dynamic_analysis_confidence"] = {
+                "level": "clean",
+                "reason": "no_dynamic_observation_and_no_abusable_permissions",
+                "declared_manual_trigger_permissions": [],
+                "affects_score": False,
+            }
+
         return signal, detail
 
 

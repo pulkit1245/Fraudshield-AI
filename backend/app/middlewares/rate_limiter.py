@@ -66,16 +66,42 @@ class _RedisWindow:
 
 
 def _build_backend():
-    try:  # pragma: no cover - depends on a running Redis
-        import redis
+    """Probe Redis in a background thread with a hard wall-clock timeout.
 
-        client = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.2)
-        client.ping()
+    Docker's wslrelay accepts the TCP connection on the Redis port even when
+    there is no live container, causing ``ping()`` or ``create_connection`` to
+    block indefinitely.  Running the probe in a daemon thread and joining with a
+    timeout guarantees we never stall the API server at startup.
+    """
+    import threading
+
+    result: list = []  # written by the thread
+
+    def _probe():
+        try:
+            import redis
+
+            client = redis.Redis.from_url(
+                settings.REDIS_URL,
+                socket_connect_timeout=0.5,
+                socket_timeout=0.5,
+            )
+            client.ping()
+            result.append(_RedisWindow(client))
+        except Exception:  # noqa: BLE001
+            result.append(None)
+
+    t = threading.Thread(target=_probe, daemon=True)
+    t.start()
+    t.join(timeout=1.0)  # hard 1 s wall-clock limit
+
+    if result and result[0] is not None:
         log.info("rate_limiter.backend", backend="redis")
-        return _RedisWindow(client)
-    except Exception:  # noqa: BLE001
-        log.info("rate_limiter.backend", backend="in_memory")
-        return _InMemoryWindow()
+        return result[0]
+
+    log.info("rate_limiter.backend", backend="in_memory")
+    return _InMemoryWindow()
+
 
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):

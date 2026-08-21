@@ -60,6 +60,9 @@ class SandboxManager:
             try:
                 return self._run_live(submission_id, apk_path, package_name)
             except Exception as exc:  # noqa: BLE001
+                if "INSTALL_FAILED_MISSING_SPLIT" in str(exc) or "adb install failed" in str(exc):
+                    log.warning("sandbox.live_install_failed_fallback_simulate", error=str(exc))
+                    return self._run_simulated(submission_id, static_hint or {})
                 log.error("sandbox.live_failed", error=str(exc))
                 raise
         elif self.mode == "simulate":
@@ -129,16 +132,17 @@ class SandboxManager:
             )
             log.info("sandbox.live.launched", pkg=pkg, run_seconds=RUN_SECONDS)
 
-            # 4. Run Frida + AdbNetworkObserver concurrently for RUN_SECONDS
+            # 4. Run Frida + NetworkCapture concurrently for RUN_SECONDS
             from app.dynamic_analysis.frida_hooks import FridaRunner, summarize_events
-            from app.dynamic_analysis.network_capture import AdbNetworkObserver
+            from app.dynamic_analysis.network_capture import NetworkCapture
 
             frida_events: list[dict] = []
             frida_error: Exception | None = None
             logcat_output = ""
 
-            with AdbNetworkObserver(inst.serial, pkg, duration=RUN_SECONDS) as observer:
+            with NetworkCapture(inst.serial, duration=RUN_SECONDS) as observer:
                 # ── Frida: primary path ──────────────────────────────────
+                frida_start = time.monotonic()
                 try:
                     runner = FridaRunner(inst.serial, pkg, run_seconds=RUN_SECONDS)
                     frida_events = runner.run()   # blocks for RUN_SECONDS
@@ -149,6 +153,7 @@ class SandboxManager:
                     )
                 except Exception as exc:  # noqa: BLE001
                     frida_error = exc
+                    frida_elapsed = time.monotonic() - frida_start
                     log.warning(
                         "sandbox.live.frida_failed",
                         pkg=pkg,
@@ -160,7 +165,12 @@ class SandboxManager:
                         [ADB_BIN, "-s", inst.serial, "logcat", "-v", "brief"],
                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                     )
-                    time.sleep(RUN_SECONDS)
+                    # Only sleep the *remaining* time — Frida already consumed
+                    # frida_elapsed seconds, so sleeping a full RUN_SECONDS
+                    # again would double the total sandbox wall-clock time.
+                    remaining = max(0.0, RUN_SECONDS - frida_elapsed)
+                    if remaining > 0:
+                        time.sleep(remaining)
                     logcat_proc.terminate()
                     try:
                         logcat_output, _ = logcat_proc.communicate(timeout=5)
