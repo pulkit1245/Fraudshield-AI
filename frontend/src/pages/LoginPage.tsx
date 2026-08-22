@@ -30,14 +30,15 @@ export default function LoginPage() {
         await loginMutation.mutateAsync({ email, password });
       }
       navigate(from, { replace: true });
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
+    } catch (err: any) {
+      if (err?.name === "ApiRequestError") {
+        const apiErr = err as ApiRequestError;
         setError(
-          err.status === 401
+          apiErr.status === 401
             ? "Invalid email or password."
-            : err.status === 429
+            : apiErr.status === 429
               ? "Too many attempts — please wait a minute."
-              : err.message,
+              : apiErr.message,
         );
       } else {
         setError("Something went wrong. Try again.");

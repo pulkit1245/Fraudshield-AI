@@ -30,7 +30,7 @@ x-backend-env: &backend-env
   STORAGE_BUCKET: fraudshield-apks
   STORAGE_REGION: us-east-005
   SANDBOX_MODE: live
-  CORS_ORIGINS: "http://localhost:5173"
+  CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
 
 x-backend-base: &backend-base
   build:
@@ -145,6 +145,9 @@ services:
       # The emulator must be started on the host with: adb tcpip 5555
       SANDBOX_ADB_HOST: "host.docker.internal:5555"
       ADB_BIN: adb
+      # Respect the value set in .env (default was silently 60s because this
+      # env block shadowed env_file for this specific variable).
+      SANDBOX_RUN_SECONDS: "${SANDBOX_RUN_SECONDS:-15}"
     healthcheck:
       disable: true
     depends_on:
@@ -157,8 +160,10 @@ services:
       - apk_storage:/tmp/fraudshield-storage
       # The worker must present the SAME ADB key the emulator has authorized.
       # Read-only host mount — the key is never copied into the image.
-      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
-      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
+      # On Windows, use the explicit USERPROFILE path; Docker Desktop resolves
+      # ~ as the WSL home which won't match the Windows .android directory.
+      - C:\Users\AYUSH GUPTA\.android\adbkey:/home/appuser/.android/adbkey:ro
+      - C:\Users\AYUSH GUPTA\.android\adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

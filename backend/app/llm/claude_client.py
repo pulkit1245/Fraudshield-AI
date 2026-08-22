@@ -83,7 +83,7 @@ class ClaudeClient:
 
     # ── one-shot JSON classification (sanitizer tier 2) ─────────────────
     def classify_json(self, *, system: str, messages: list[dict],
-                      model: str | None = None, max_tokens: int = 256) -> dict | None:
+                      model: str | None = None, max_tokens: int = 1024) -> dict | None:
         if not self.is_available:
             return None
         try:

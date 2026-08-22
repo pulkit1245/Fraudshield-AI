@@ -54,10 +54,17 @@ Rules:
 - Use ONLY the data provided. Do not speculate beyond the metadata.
 - Pick ONE primary_category. secondary_categories may be empty.
 - confidence must be between 0.0 and 1.0.
-- expected_permissions should use short names like READ_SMS, CAMERA, INTERNET.
-- expected_behaviors should be 3-8 concise action phrases.
-- unexpected_permission_examples and unexpected_behavior_examples should list
-  2-5 things that would be anomalous specifically for THIS category.
+- expected_permissions: list ALL permissions that are NORMAL for this category.
+  Include 5-12 items using SHORT names (e.g. READ_SMS, CAMERA, INTERNET,
+  USE_BIOMETRIC, RECORD_AUDIO, LOCATION, STORAGE, READ_CONTACTS, VIBRATE,
+  RECEIVE_BOOT_COMPLETED, FOREGROUND_SERVICE, RECEIVE_SMS, etc.).
+  Be thorough — list every permission a legitimate app of this type would need.
+- expected_behaviors should be 4-8 concise action phrases describing what the
+  app normally does at runtime.
+- unexpected_permission_examples: list 3-6 permissions that would be SUSPICIOUS
+  or anomalous specifically for THIS category.
+- unexpected_behavior_examples: list 2-5 runtime behaviors that would be
+  anomalous or suspicious specifically for THIS category.
 """
 
 

@@ -30,6 +30,32 @@ from app.core.logging import get_logger
 
 log = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Hardcoded fallback markers — used when no DB-loaded api_markers are passed.
+# Mirrors the same bucket names as feature_spec.API_BUCKETS.
+# ---------------------------------------------------------------------------
+SENSITIVE_API_MARKERS: dict[str, list[str]] = {
+    "sms":          ["Landroid/telephony/SmsManager;->sendTextMessage",
+                     "Landroid/provider/Telephony$Sms",
+                     "Landroid/telephony/SmsMessage;"],
+    "accessibility": ["Landroid/accessibilityservice/AccessibilityService;",
+                      "android.accessibilityservice",
+                      "AccessibilityNodeInfo"],
+    "overlay":      ["SYSTEM_ALERT_WINDOW",
+                     "TYPE_APPLICATION_OVERLAY",
+                     "WindowManager$LayoutParams"],
+    "telephony":    ["Landroid/telephony/TelephonyManager;",
+                     "getDeviceId", "getSubscriberId", "getLine1Number"],
+    "contacts":     ["Landroid/provider/ContactsContract;",
+                     "content://contacts"],
+    "device_admin": ["Landroid/app/admin/DevicePolicyManager;",
+                     "DeviceAdminReceiver"],
+    "dynamic_code": ["DexClassLoader", "PathClassLoader", "InMemoryDexClassLoader",
+                     "loadClass", "reflect.Method", "Class.forName"],
+    "install":      ["REQUEST_INSTALL_PACKAGES",
+                     "Landroid/content/pm/PackageInstaller;"],
+}
+
 
 def _load_apk(apk_path: str):
     """Lazily import Androguard and return (APK, DalvikVMFormat list, Analysis).
@@ -198,6 +224,27 @@ def _sensitive_api_summary(dx, markers: Iterable[Any]) -> tuple[dict[str, int], 
     return counts, evidence
 
 
+def _obfuscation_score(dx) -> float:
+    """Estimate obfuscation level from the fraction of classes with very short names.
+
+    Short class-name segments (≤ 2 chars after the last '/') are a strong
+    proxy for ProGuard / DexGuard renaming.  Capped at 1.0.
+    """
+    try:
+        all_classes = list(dx.get_classes())
+        n_total = len(all_classes)
+        if n_total == 0:
+            return 0.0
+        short_names = [
+            c.name for c in all_classes
+            if len(c.name.split('/')[-1].rstrip(';')) <= 2
+        ]
+        return min(1.0, len(short_names) / n_total)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("androguard.obfuscation_score_failed", error=str(exc))
+        return 0.0
+
+
 def extract(apk_path: str, api_markers: Iterable[Any] = ()) -> dict[str, Any]:
     """Run full static extraction on the APK at `apk_path`.
 
@@ -244,6 +291,7 @@ def extract(apk_path: str, api_markers: Iterable[Any] = ()) -> dict[str, Any]:
             ),
         },
         "certificate_info": _certificate_info(apk),
+        "obfuscation_score": _obfuscation_score(dx),
         "api_call_graph": {
             "sensitive_calls": sensitive_calls,
             "rule_evidence": rule_evidence,

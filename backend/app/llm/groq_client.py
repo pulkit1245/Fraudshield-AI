@@ -50,7 +50,7 @@ class GroqClient:
 
     # ── one-shot JSON classification ────────────────────────────────────
     def classify_json(self, *, system: str, messages: list[dict],
-                      model: str | None = None, max_tokens: int = 256) -> dict | None:
+                      model: str | None = None, max_tokens: int = 1024) -> dict | None:
         if not self.is_available:
             log.warning("groq.classify_json.unavailable", init_error=self._init_error)
             return None

@@ -189,4 +189,31 @@ def get_default_detector() -> NoveltyDetector:
 
 
 def novelty_score(vector: np.ndarray) -> float:
+    """Return normalized novelty in [0, 1] for `vector`.
+
+    FIXME (scoring accuracy): this lane is currently saturated on real APKs.
+    A 6-APK run captured in `apk_report.json` returned score() == 1.0 for every
+    single sample — a benign calculator with 1 permission, a legitimate banking
+    app with 39, and a confirmed-malware sample alike. A signal that is constant
+    across its whole input range carries no information, and because it sat at
+    W_NOVELTY=0.13 in the ensemble it was contributing a flat +13/100 to every
+    verdict, compressing malicious and benign samples together.
+
+    W_NOVELTY has been cut to 0.025 in `app.services.scoring_service` as a
+    stopgap so the dead lane stops biasing verdicts, but that is treating the
+    symptom. Likely root causes, in order of suspicion:
+
+      1. `benign_reference.npy` is not distributed like the real APK corpus, so
+         every real sample lands far outside it. The reference was saved from a
+         Colab export; the unscaled feature columns (`declared_perm_count`,
+         `n_activities`, `n_services`, `dyn_network_calls`) are unbounded counts,
+         so a modest difference in app size dominates the reconstruction error.
+      2. `_err_scale` (a MAD) collapses toward ~0 on a tight reference set, which
+         makes the robust z in `score()` explode and drives `1 - exp(-z)` to 1.0
+         for anything off-centre.
+
+    Fix direction: log the raw `err`, `_err_median` and `_err_scale` for a batch
+    of real APKs to confirm which of the two dominates, clamp/log-scale the
+    unbounded count features before fitting, then re-fit and restore W_NOVELTY.
+    """
     return get_default_detector().score(vector)
