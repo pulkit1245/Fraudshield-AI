@@ -63,13 +63,22 @@ log = get_logger(__name__)
 # (curated permission combos + corroborated API markers). W_CONTEXT and W_FAMILY
 # are unchanged — neither was implicated by this evidence.
 # W_CLASSIFIER remains the single largest weight (0.41 > 0.395).
-# Sum: 0.41 + 0.025 + 0.395 + 0.05 + 0.05 + 0.07 = 1.00
-W_CLASSIFIER = 0.41
+#
+# v4 recalibration: VT lane removed from the scoring formula.
+# Rationale: W_VT=0.05 with a neutral fallback of 0.5 means every APK that has
+# not yet been queried against VirusTotal starts with a flat +2.5 pts before any
+# evidence is considered. This is a persistent baseline bias with no diagnostic
+# value. VT data is still fetched, stored, and surfaced to analysts in the
+# summary dict — it just no longer influences final_risk_score. The freed 0.05
+# goes entirely to W_CLASSIFIER: a higher-quality probabilistic signal that
+# actually varies per-sample and has no neutral-fallback problem.
+# New sum: 0.46 + 0.025 + 0.395 + 0.05 + 0.07 = 1.00
+W_CLASSIFIER = 0.46   # absorbs the former W_VT=0.05
 W_NOVELTY    = 0.025  # provisional: lane is saturated at 1.0, see note above
 W_RULES      = 0.395
-W_VT         = 0.05
-W_CONTEXT    = 0.05  # context-aware permission anomaly
-W_FAMILY     = 0.07  # genome/mutation match signal (mutation engine)
+W_VT         = 0.0    # removed from formula; VT data kept for analyst transparency
+W_CONTEXT    = 0.05   # context-aware permission anomaly
+W_FAMILY     = 0.07   # genome/mutation match signal (mutation engine)
 
 # Upper bound of the "classifier is not making a confident malicious call" band,
 # used to decide when to transfer weight from the classifier to the rule signal.
@@ -142,6 +151,46 @@ _MANUAL_TRIGGER_PERMISSIONS = frozenset({
     "android.permission.SEND_SMS",
 })
 
+# ── Classification-match gating (v5) ─────────────────────────────────────────
+# Gemini classifies the APK into a category; PermissionPolicyService then
+# computes context_score (0–1) measuring how anomalous the declared permissions
+# are for that category.
+#
+#   context_score ≈ 0.0  →  permissions perfectly match the category  (SAFE)
+#   context_score ≈ 1.0  →  permissions completely wrong for category  (SUSPICIOUS)
+#
+# MATCH path (context_score ≤ CLASSIFICATION_MATCH_MAX_CONTEXT AND
+#             category_confidence ≥ CLASSIFICATION_MATCH_MIN_CONFIDENCE AND
+#             no obfuscation penalty active):
+#   • The app is behaving exactly as its declared category suggests.
+#   • ML classifier weight is reduced (SAFE_MATCH_CLASSIFIER_REDUCTION);
+#     freed weight moves to W_RULES so the ensemble still sums to 1.0.
+#   • After ensemble, final_100 is multiplied by SAFE_MATCH_SCORE_DAMPENER
+#     so structurally well-behaved apps are not over-penalised.
+#   • classification_verdict = "safe_category_match"
+#
+# MISMATCH path (context_score ≥ CLASSIFICATION_MISMATCH_MIN_CONTEXT):
+#   • Permissions are anomalous for the declared category → suspicious.
+#   • effective_context_score = context_score × MISMATCH_CONTEXT_MULTIPLIER
+#     (capped at 1.0) so the anomaly punches through even if other lanes
+#     are quiet.  ML runs at full, unmodified weight.
+#   • classification_verdict = "suspicious_category_mismatch"
+#
+# Borderline / unclassified / low-confidence → verdict = "inconclusive" /
+# "no_classification" / "low_confidence"; no weight adjustments applied.
+CLASSIFICATION_MATCH_MAX_CONTEXT    = 0.15  # context_score ≤ this → match (SAFE)
+CLASSIFICATION_MATCH_MIN_CONFIDENCE = 0.60  # minimum category confidence for gating
+CLASSIFICATION_MISMATCH_MIN_CONTEXT = 0.40  # context_score ≥ this → mismatch (SUSPICIOUS)
+
+# MATCH: fraction transferred from W_CLASSIFIER → W_RULES (sum stays 1.0).
+SAFE_MATCH_CLASSIFIER_REDUCTION = 0.15
+# MATCH: post-ensemble score multiplier — keeps legit apps out of high/critical.
+SAFE_MATCH_SCORE_DAMPENER = 0.70
+
+# MISMATCH: scale factor for effective_context_score so the anomaly drives
+# the verdict without touching classifier / novelty / rule / family lanes.
+MISMATCH_CONTEXT_MULTIPLIER = 3.0
+
 
 class ScoringService:
     def __init__(self, db: Session) -> None:
@@ -173,9 +222,9 @@ class ScoringService:
         model, _names = infer.get_model_and_features()
         shap = shap_utils.compute_contributions(model, vector)
 
-        # VT signal: use 0.5 (neutral) when absent so all 5 weights always
-        # participate and the denominator is always 1.0.
-        vt = vt_signal if vt_signal is not None else 0.5
+        # VT signal is fetched for analyst transparency and stored in the summary
+        # dict but W_VT=0.0, so it does not contribute to final_risk_score.
+        vt = vt_signal if vt_signal is not None else 0.5  # kept for summary only
 
         # Adaptive weighting: when heavy obfuscation is detected OR a curated
         # permission combo fired (classifier blind to API calls) AND the classifier
@@ -194,8 +243,8 @@ class ScoringService:
             )
         )
         if obfuscation_penalty:
-            # Transfer classifier → rules; novelty/VT/context/family unchanged, so
-            # the effective weights still sum to 1.0.
+            # Transfer classifier → rules; novelty/context/family unchanged, so
+            # the effective weights still sum to 1.0 (VT lane is already 0.0).
             w_c = W_CLASSIFIER - CLASSIFIER_TO_RULES_TRANSFER
             w_r = W_RULES + CLASSIFIER_TO_RULES_TRANSFER
             log.info("scoring.adaptive_weights",
@@ -207,15 +256,76 @@ class ScoringService:
         else:
             w_c, w_r = W_CLASSIFIER, W_RULES
 
+        # ── Classification match/mismatch gating ────────────────────────────────
+        # Compare Gemini's classified category against the APK's actual declared
+        # permissions (via context_score from PermissionPolicyService).
+        #
+        # Guard: skip safe-match path if the obfuscation_penalty also fired —
+        # obfuscation + perm-combo evidence contradicts a "safe" verdict.
+        cat_confidence = float(context_detail.get("category_confidence") or 0.0)
+        cat_exists = "category" in context_detail  # absent for no_classification / error
+        effective_context_score = context_score     # default: unmodified
+
+        if cat_exists and cat_confidence >= CLASSIFICATION_MATCH_MIN_CONFIDENCE:
+            if (
+                context_score <= CLASSIFICATION_MATCH_MAX_CONTEXT
+                and not obfuscation_penalty   # don't override when obfuscation fired
+            ):
+                # ✅ SAFE — permissions are consistent with declared category.
+                # Reduce ML weight; transfer freed weight to rules so sum stays 1.0.
+                w_c = max(0.0, w_c - SAFE_MATCH_CLASSIFIER_REDUCTION)
+                w_r = w_r + SAFE_MATCH_CLASSIFIER_REDUCTION
+                classification_verdict = "safe_category_match"
+                log.info(
+                    "scoring.classification_safe",
+                    category=context_detail["category"],
+                    context_score=round(context_score, 4),
+                    confidence=round(cat_confidence, 4),
+                    w_classifier_effective=round(w_c, 4),
+                )
+            elif context_score >= CLASSIFICATION_MISMATCH_MIN_CONTEXT:
+                # 🚨 SUSPICIOUS — permissions anomalous for declared category.
+                # Amplify context signal; ML runs at full unmodified weight.
+                effective_context_score = min(
+                    1.0, context_score * MISMATCH_CONTEXT_MULTIPLIER
+                )
+                classification_verdict = "suspicious_category_mismatch"
+                log.info(
+                    "scoring.classification_mismatch",
+                    category=context_detail["category"],
+                    context_score=round(context_score, 4),
+                    effective_context_score=round(effective_context_score, 4),
+                    confidence=round(cat_confidence, 4),
+                )
+            else:
+                # Borderline — not a confident match or clear mismatch.
+                classification_verdict = "inconclusive"
+        else:
+            classification_verdict = (
+                "no_classification" if not cat_exists else "low_confidence"
+            )
+
         final_100 = round(100.0 * (
             w_c * classifier_score
             + W_NOVELTY * nov
             + w_r * rule_signal
-            + W_VT * vt
-            + W_CONTEXT * context_score
+            # W_VT = 0.0 — VT lane removed from formula (see weight block comment)
+            + W_CONTEXT * effective_context_score  # amplified on mismatch, normal otherwise
             + W_FAMILY * family_score
         ))
         final_100 = int(max(0, min(100, final_100)))
+
+        # SAFE post-ensemble dampener: scale down the score when category match is
+        # confirmed — a well-behaved app should not land in high/critical just
+        # because its permissions look dangerous out of context.
+        if classification_verdict == "safe_category_match":
+            pre_dampen = final_100
+            final_100 = int(final_100 * SAFE_MATCH_SCORE_DAMPENER)
+            log.info(
+                "scoring.safe_dampener_applied",
+                pre_dampen=pre_dampen,
+                post_dampen=final_100,
+            )
         band = severity_band(final_100)
         action = recommended_action(band)
 
@@ -234,10 +344,24 @@ class ScoringService:
             "rule_signal": round(rule_signal, 4),
             "vt_signal": round(vt_signal, 4) if vt_signal is not None else None,
             "context_score": round(context_score, 4),
+            # effective_context_score = context_score × MISMATCH_CONTEXT_MULTIPLIER
+            # on mismatch, or unchanged on safe-match / inconclusive.
+            "effective_context_score": round(effective_context_score, 4),
             "family_score": round(family_score, 4),
             "rule_detail": rule_detail,
             "context_detail": context_detail,
             "family_detail": family_detail,
+            # ── Classification-match verdict (v5) ───────────────────────────────
+            # "safe_category_match"          → Gemini category matches declared
+            #                                  permissions; ML weight reduced,
+            #                                  score dampened by 0.70×.
+            # "suspicious_category_mismatch" → Permissions anomalous for category;
+            #                                  context signal amplified 3×, ML
+            #                                  at full weight.
+            # "inconclusive"                 → Borderline context_score (0.15–0.40).
+            # "no_classification"            → Gemini classification unavailable.
+            # "low_confidence"               → Category confidence < 0.60.
+            "classification_verdict": classification_verdict,
             # Surfaced at top level for the UI/analyst view. Transparency only —
             # never contributes to final_risk_score.
             "dynamic_analysis_confidence": rule_detail.get("dynamic_analysis_confidence"),
@@ -255,8 +379,10 @@ class ScoringService:
                 "classifier": round(w_c, 4),
                 "novelty": W_NOVELTY,
                 "rules": round(w_r, 4),
-                "vt": W_VT,
+                "vt": W_VT,  # 0.0 — removed from formula; VT kept for transparency
                 "context": W_CONTEXT,
+                # actual context value fed into the formula (amplified on mismatch)
+                "effective_context_value": round(effective_context_score, 4),
                 "family": W_FAMILY,
             },
         }

@@ -160,8 +160,10 @@ services:
       - apk_storage:/tmp/fraudshield-storage
       # The worker must present the SAME ADB key the emulator has authorized.
       # Read-only host mount — the key is never copied into the image.
-      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
-      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
+      # On Windows, use the explicit USERPROFILE path; Docker Desktop resolves
+      # ~ as the WSL home which won't match the Windows .android directory.
+      - C:\Users\AYUSH GUPTA\.android\adbkey:/home/appuser/.android/adbkey:ro
+      - C:\Users\AYUSH GUPTA\.android\adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

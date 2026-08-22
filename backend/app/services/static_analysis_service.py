@@ -86,12 +86,16 @@ class StaticAnalysisService:
             if jadx_out.get("ok") and jadx_out.get("out_dir"):
                 string_literals = jadx_wrapper.collect_string_literals(jadx_out["out_dir"])
 
-            # 4) Obfuscation heuristic.
-            obfuscation_score = permission_extractor.compute_obfuscation_score(
+            # 4) Obfuscation heuristic: blend DEX class-name score (from androguard)
+            #    with the string/smali score from permission_extractor — take the max
+            #    so either signal alone is enough to flag obfuscation.
+            dex_obf_score = float(ag.get("obfuscation_score") or 0.0)
+            str_obf_score = permission_extractor.compute_obfuscation_score(
                 string_literals=string_literals,
                 class_names=[],  # class-name harvesting can be added from smali tree
                 smali_stats=apktool_stats,
             )
+            obfuscation_score = max(dex_obf_score, str_obf_score)
 
             finding = self._persist(submission_id, ag, apktool_stats, jadx_out,
                                     obfuscation_score)

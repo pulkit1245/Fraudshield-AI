@@ -76,8 +76,14 @@ def predict(vector: np.ndarray) -> float:
     if bundle is None:
         return _heuristic_score(vector[0])
     model = bundle["model"]
+    label_encoder = bundle.get("label_encoder")
     try:
-        return float(model.predict_proba(vector)[0, 1])
+        proba = model.predict_proba(vector)[0]
+        if label_encoder is not None and 5 in label_encoder.classes_:
+            benign_idx = list(label_encoder.classes_).index(5)   # class 5 = Benign
+            return float(1.0 - proba[benign_idx])
+        # Fallback: binary model — column 1 is the positive/fraud class
+        return float(proba[1])
     except Exception as exc:  # noqa: BLE001
         log.warning("classifier.predict_failed", error=str(exc))
         return _heuristic_score(vector[0])
