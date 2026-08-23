@@ -101,7 +101,21 @@ def run_dynamic_analysis(self, submission_id: str):
         return {"submission_id": submission_id, "stage": "dynamic_complete"}
 
     except Exception as exc:  # noqa: BLE001
-        log.error("dynamic_task.failed", submission_id=submission_id, error=str(exc))
+        err_str = str(exc)
+        log.error("dynamic_task.failed", submission_id=submission_id, error=err_str)
+
+        # Fail fast on architecture mismatch, retrying will never succeed
+        if "INSTALL_FAILED_NO_MATCHING_ABIS" in err_str:
+            with session_scope() as db:
+                from app.repositories.submission_repository import SubmissionRepository
+                repo = SubmissionRepository(db)
+                repo.update_status(submission_id, "failed", completed=True)
+                repo.update_analysis_stage(
+                    submission_id, "Dynamic Analysis", "failed",
+                    error_message=f"Architecture mismatch (APK lacks 64-bit ARM / arm64-v8a support): {err_str}"
+                )
+            return {"submission_id": submission_id, "stage": "dynamic_failed_abi"}
+
         try:
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
@@ -114,7 +128,7 @@ def run_dynamic_analysis(self, submission_id: str):
                 )
                 repo.update_analysis_stage(
                     submission_id, "Dynamic Analysis", "failed",
-                    error_message=str(exc)
+                    error_message=err_str
                 )
             raise
 
