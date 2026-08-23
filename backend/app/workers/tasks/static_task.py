@@ -108,9 +108,6 @@ def run_static_analysis(self, submission_id: str):
 
     except Exception as exc:  # noqa: BLE001
         log.error("static_task.failed", submission_id=submission_id, error=str(exc))
-        # Even on failure, try to advance the pipeline if dynamic is done and
-        # a static_findings row was persisted (e.g. by the soft-timeout handler).
-        _try_advance_pipeline(submission_id)
         try:
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:

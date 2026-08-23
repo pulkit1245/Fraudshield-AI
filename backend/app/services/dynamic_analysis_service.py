@@ -95,7 +95,37 @@ class DynamicAnalysisService:
         finding.accessibility_abuse = bool(result.get("accessibility_abuse"))
         finding.overlay_detected = bool(result.get("overlay_detected"))
         finding.network_calls = result.get("network_calls") or []
+        # ── Forensic behaviour detail (migration 0009) ───────────────────
+        # frida_events is a non-null list: a missing key means "no events".
+        finding.frida_events = result.get("frida_events") or []
+        # observed_network_calls is passed through RAW — like `mode` and
+        # `containment_verified` below — to preserve the None fail-closed
+        # contract from AdbNetworkObserver: a missing key or an observer error
+        # persists as NULL (unknown), which is a DISTINCT security state from []
+        # (probed, nothing connected). `or []` would collapse that distinction.
+        finding.observed_network_calls = result.get("observed_network_calls")
         finding.sandbox_log_path = result.get("sandbox_log_path")
+        # ── Sandbox provenance (Phase 1) ─────────────────────────────────
+        # Recorded verbatim from the sandbox result rather than from
+        # SANDBOX_MODE, so the column reflects the path that actually ran.
+        #
+        # Both are passed through WITHOUT bool()/or-coercion: a missing key must
+        # persist as NULL (unknown), which is a distinct state from "simulate"
+        # and from False. `or` would collapse False into NULL and lose the
+        # difference between "not probed" and "probed, containment failed".
+        #
+        # KNOWN LIMITATION, accepted for Phase 1 and removed by Phase 2:
+        # SandboxManager.run() returns mode="simulate" both for an explicitly
+        # configured simulate run and for a live run that failed and fell back
+        # (sandbox_manager.py:57-62 → _run_simulated). Provenance derived solely
+        # from the returned mode therefore cannot distinguish the two, so a
+        # degraded live run is indistinguishable here from an intended
+        # simulation. Phase 2's fail-closed behaviour is what resolves this
+        # operationally: once a live failure raises instead of falling through,
+        # mode="simulate" can only mean SANDBOX_MODE=simulate was requested.
+        # Asserted in test_dynamic_provenance.py::test_live_fallback_*.
+        finding.mode = result.get("mode")
+        finding.containment_verified = result.get("containment_verified")
         self.db.commit()
         self.db.refresh(finding)
         return finding

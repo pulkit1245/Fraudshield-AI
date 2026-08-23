@@ -177,11 +177,11 @@ Actions: `monitor`, `alert_customers`, `block_hash`, `escalate_cert_in`.
 **This is where the repository diverges most sharply from its own description.**
 `sandbox_manager.py` documents three modes, and the divergence starts with their defaults:
 
-| Reader | Default | Source |
-|---|---|---|
-| `SandboxManager.__init__` | `"mobsf"` | `sandbox_manager.py:35` |
-| `dynamic_task.run_dynamic_analysis` | `"simulate"` | `dynamic_task.py:55` |
-| Compose `worker-dynamic` | `"live"` | `docker-compose.yml:143` |
+| Reader                                | Default        | Source                     |
+| ------------------------------------- | -------------- | -------------------------- |
+| `SandboxManager.__init__`           | `"mobsf"`    | `sandbox_manager.py:35`  |
+| `dynamic_task.run_dynamic_analysis` | `"simulate"` | `dynamic_task.py:55`     |
+| Compose`worker-dynamic`             | `"live"`     | `docker-compose.yml:143` |
 
 Three different defaults for one variable. Compose wins in deployment, so **live is the
 operative mode**, but any code path constructing `SandboxManager()` outside Compose gets
@@ -251,8 +251,7 @@ binary; REMOTE (`SANDBOX_ADB_HOST` set) `adb connect`s to an already-running dev
 `EmulatorInstance` carries `serial`, `avd_name`, `console_port`, `remote`. Pool is a
 `queue.Queue` with a lock, `POOL_SIZE` default 1.
 
-Local boot (`_boot_one`, `:134`) passes `-no-window -no-audio -no-boot-anim -wipe-data
--dns-server 10.0.2.15 -no-snapshot-save`. The fake DNS server is the local containment
+Local boot (`_boot_one`, `:134`) passes `-no-window -no-audio -no-boot-anim -wipe-data -dns-server 10.0.2.15 -no-snapshot-save`. The fake DNS server is the local containment
 mechanism.
 
 Boot polling (`_wait_for_boot`, `:155`) is good: `BOOT_TIMEOUT` 180s local,
@@ -814,94 +813,3 @@ Two things this diagram is meant to make unmissable. The sample executes **outsi
 on the host, so the container boundary protects the worker rather than the host. And the only
 real containment engineering in the repo sits in the dashed box — written, unintegrated, and
 untracked.
-
----
-
-## 25. Component / file / function reference
-
-| Component | File | Key function | Purpose |
-|---|---|---|---|
-| Upload API | `api/v1/submissions.py` | `create_submission` `:76` | Validate, hash, dedupe, store, enqueue |
-| Pipeline dispatch | `api/v1/submissions.py` | `_enqueue_pipeline` `:47` | Fan-out to static + dynamic queues, best-effort |
-| Static task | `workers/tasks/static_task.py` | `_try_advance_pipeline` `:131` | Run static analysis, half of the join |
-| Dynamic task | `workers/tasks/dynamic_task.py` | `run_dynamic_analysis` `:49` | Sandbox run, other half of the join |
-| Join probe | `workers/tasks/dynamic_task.py` | `_static_finished` `:32` | Existence-only check for static row |
-| Sandbox router | `dynamic_analysis/sandbox_manager.py` | `run` `:44` | Mode selection + silent degradation cascade |
-| Live sandbox | `dynamic_analysis/sandbox_manager.py` | `_run_live` `:98` | install → monkey → logcat → uninstall |
-| Fabrication path | `dynamic_analysis/sandbox_manager.py` | `_run_simulated` `:185` | Derives findings from static, invents hosts |
-| Logcat parser | `dynamic_analysis/sandbox_manager.py` | `_parse_logcat` `:254` | 6 regexes over log text → 3 booleans |
-| Emulator pool | `dynamic_analysis/emulator_pool.py` | `acquire` / `release` `:204` | Lease devices; remote never reset |
-| Egress control | `dynamic_analysis/emulator_pool.py` | `_harden_network` `:189` | Unverified `svc` calls, unconditional success log |
-| Dead: packet capture | `dynamic_analysis/network_capture.py` | — | Imported once, never called |
-| Dead: instrumentation | `dynamic_analysis/frida_hooks.py` | — | Zero importers repo-wide |
-| Persistence gap | `services/dynamic_analysis_service.py` | `_persist` `:85` | Writes 5 fields, drops `mode` |
-| Scoring ensemble | `services/scoring_service.py` | `score` `:47` | 5-component weighted 0–100 verdict |
-| Obfuscation override | `services/scoring_service.py` | `score` `:81-100` | Shifts 20pp classifier → rules |
-| VT signal | `services/scoring_service.py` | `_vt_signal` `:190` | Neutral 0.5 on absent/error |
-| Context signal | `services/scoring_service.py` | `_context_signal` `:147` | 0.0 on no classification (asymmetric) |
-| Feature contract | `ml/feature_spec.py` | `featurize` | Fixed named 29-dim vector |
-| Classifier | `ml/classifier/infer.py` | `predict` / `model_version` | `model.pkl` + heuristic fallback |
-| Novelty | `ml/novelty/autoencoder.py` | `novelty_score` | PCA (torch commented out) |
-| Clustering | `services/clustering_service.py` | `assign` / `_cosine` `:133` | Greedy nearest centroid, cosine 0.90 |
-| TI ingestion | `ti_ingestion/normalizer.py` | `:71` | Stable external ID via sha256 prefix |
-| Celery config | `workers/celery_app.py` | `:51-65` | acks_late, 2 queues, `"*"` retry glob |
-| Lifecycle | `models/submission.py` | `progress_pct` `:90` | Status order map, can regress |
-| Containment (planned) | `infra/redroid/setup-oracle-host.sh` | — | iptables DOCKER-USER + INPUT, probes |
-| Tunnel (planned) | `infra/redroid/adb-tunnel.sh` | `:117` | Only mention of the egress flag |
-
----
-
-## 26. Unknowns — environment information required
-
-Determinable only by inspecting a running deployment or asking the operator:
-
-1. **Python version** in the built backend image. Three bytecode generations (3.10, 3.12,
-   3.14) coexist in `__pycache__`; `backend/Dockerfile` is authoritative and was not read in
-   full.
-2. **Whether `apktool`, `jadx`, and `frida` binaries exist in the image.** The Python
-   wrappers assume them; presence determines whether static analysis silently degrades.
-3. **Whether `torch` is installed.** Commented out of `requirements.txt`, which forces
-   novelty detection onto the PCA backend. If the image installs it separately, the active
-   novelty path differs.
-4. **Whether the host AVD actually has egress.** Needs a live probe from inside the running
-   emulator. The repo cannot settle whether `-dns-server 10.0.2.15` plus the unverified `svc`
-   calls achieve containment.
-5. **Whether `~/.android/adbkey` on the host is the previously-compromised key or a
-   regenerated one.** The tracked `backend/adb_keys/*` files are 18-byte placeholders and
-   reveal nothing about the real host key.
-6. **Celery precedence: does `task_annotations["*"]["max_retries"] = 3` override the
-   `max_retries=6` decorator on `run_dynamic_analysis`?** Version-specific. Determines whether
-   the intended 3-waits-plus-3-failures budget exists.
-7. **Current test suite pass/fail state.** Not executed, per the read-only constraint.
-8. **Actual `.env` contents** — which of `GROQ_API_KEY`, `GEMINI_API_KEY`, `CLAUDE_API_KEY`,
-   `VIRUSTOTAL_API_KEY`, `OTX_API_KEY`, `MALWAREBAZAAR_ENABLED` are populated. This determines
-   which LLM client and which TI fetchers are live, and whether the 15% VT weight is
-   contributing signal or sitting at neutral 0.5.
-9. **Whether `ti:last_fetch:otx` in Redis is still poisoned** past un-ingested data by the
-   fixed watermark bug.
-10. **Whether any submission in the current database was scored on simulated findings.**
-    Because `mode` is not persisted, this is *unanswerable from the database* — it would
-    require correlating each `dynamic_findings.sandbox_log_path` blob, which is the clearest
-    possible demonstration of why S1 matters.
-11. **`model.pkl` provenance** — which script produced it (`train.py` synthetic vs.
-    `train_real.py`), on what corpus, and its `model_version` string. The artifact is dated
-    2026-08-10 and the repo does not record its lineage.
-12. **Deployment target for redroid** — whether the Oracle instance exists yet, since
-    `infra/redroid/` is untracked and unexecuted.
-
----
-
-## Closing notes for architectural planning
-
-The highest-leverage observation is that **S1, S2, S4, and S6 compose into a single failure
-mode**: analysis can silently become fiction, the system will report success, containment can
-be simultaneously unverified and believed-verified, and the database retains no evidence
-either way. They are four symptoms of one missing concept — a persisted, trustworthy record
-of *how* a sample was analysed and whether the sandbox was provably contained.
-
-Second, the codebase's quality is strongly bimodal, and the split tracks test coverage
-precisely: the TI ingestion pipeline is careful, well-tested, and accurately documented, while
-the dynamic-analysis path has no tests and documentation that overstates it. That asymmetry is
-probably the most useful signal about where to direct effort.
-
-No modifications were made to the repository during this audit.

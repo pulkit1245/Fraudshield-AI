@@ -16,6 +16,11 @@ import type {
   VirusTotalResult,
 } from "../../types";
 import { BAND_BADGE, BAND_COLOR } from "../../utils/format";
+import {
+  deriveSandboxProvenance,
+  networkCallOrigin,
+  type SandboxProvenance,
+} from "../../utils/sandboxProvenance";
 import type { AnalysisOverallState } from "../AnalysisCompleteness/AnalysisCompletenessCard";
 
 export interface ReportViewerProps {
@@ -208,6 +213,7 @@ function SecuritySummarySection({
   const band = verdict?.severity_band;
   const score = verdict?.effective_score ?? verdict?.final_risk_score;
   const isComplete = overallState === "COMPLETED";
+  const isUnverified = overallState === "COMPLETED_UNVERIFIED";
 
   const summaryLines: string[] = [];
   if (overallState === "FAILED") {
@@ -218,6 +224,10 @@ function SecuritySummarySection({
     );
     if (isComplete) {
       summaryLines.push("All pipeline stages completed successfully.");
+    } else if (isUnverified) {
+      summaryLines.push(
+        "All pipeline stages completed, but the runtime behaviour in this report was not produced by a verified live sandbox execution — see Runtime Behaviour for its actual provenance."
+      );
     } else if (overallState === "PARTIALLY_COMPLETED") {
       summaryLines.push(
         `Analysis was partially completed — ${issues.length} stage(s) failed or were skipped. The verdict is based on the available evidence only.`
@@ -243,6 +253,8 @@ function SecuritySummarySection({
           {band && <SeverityBadge band={band} />}
           {isComplete ? (
             <StatusPill label="✓ Analysis Complete" color="green" />
+          ) : isUnverified ? (
+            <StatusPill label="⚠ Complete — Runtime Unverified" color="yellow" />
           ) : overallState === "PARTIALLY_COMPLETED" ? (
             <StatusPill label="⚠ Partially Complete" color="yellow" />
           ) : overallState === "FAILED" ? (
@@ -619,17 +631,22 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
         )}
 
         {/* API indicators */}
-        {acg?.sensitive_calls && Object.keys(acg.sensitive_calls).length > 0 && (
+        {acg?.sensitive_calls && Object.values(acg.sensitive_calls).some((val: any) => (Array.isArray(val) ? val.length : Number(val)) > 0) && (
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               Sensitive API Indicators
             </h3>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(acg.sensitive_calls).map(([cat, calls]: [string, any]) => (
-                <span key={cat} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-1 text-xs font-medium text-orange-800">
-                  {cat} ({Array.isArray(calls) ? calls.length : 1} call{Array.isArray(calls) && calls.length !== 1 ? "s" : ""})
-                </span>
-              ))}
+              {Object.entries(acg.sensitive_calls)
+                .filter(([_, val]: [string, any]) => (Array.isArray(val) ? val.length : Number(val)) > 0)
+                .map(([cat, val]: [string, any]) => {
+                  const num = Array.isArray(val) ? val.length : Number(val);
+                  return (
+                    <span key={cat} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-1 text-xs font-medium text-orange-800">
+                      {cat} ({num} call{num !== 1 ? "s" : ""})
+                    </span>
+                  );
+              })}
             </div>
           </div>
         )}
@@ -654,40 +671,71 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
 
   const networkCalls = dyn.network_calls ?? [];
   const anyFlag = dyn.sms_access || dyn.overlay_detected || dyn.accessibility_abuse;
+  // Provenance drives the wording below. Previously every description asserted
+  // "during dynamic analysis" unconditionally, which read as runtime evidence
+  // even when the sample was never executed.
+  const prov = deriveSandboxProvenance(dyn);
+  const origin = networkCallOrigin(prov);
 
   const behaviourItems = [
     {
       key: "sms_access",
       label: "SMS Activity",
       detected: dyn.sms_access,
-      desc: "Application accessed SMS-related functionality during dynamic analysis.",
+      desc: `Application accessed SMS-related functionality ${prov.observedPhrase}.`,
       matter: WHY_RUNTIME_MATTERS.sms_access,
     },
     {
       key: "overlay_detected",
       label: "Overlay Window",
       detected: dyn.overlay_detected,
-      desc: "Application drew an overlay window during dynamic analysis.",
+      desc: `Application drew an overlay window ${prov.observedPhrase}.`,
       matter: WHY_RUNTIME_MATTERS.overlay_detected,
     },
     {
       key: "accessibility_abuse",
       label: "Accessibility Service",
       detected: dyn.accessibility_abuse,
-      desc: "Application interacted with Accessibility Services during dynamic analysis.",
+      desc: `Application interacted with Accessibility Services ${prov.observedPhrase}.`,
       matter: WHY_RUNTIME_MATTERS.accessibility_abuse,
     },
   ];
 
+  // A clean run is only reportable as "no suspicious flags" when the sample was
+  // actually executed. Without a live run, absence of flags is absence of
+  // evidence, so the badge reports provenance instead of a false all-clear.
   const badge = anyFlag ? (
-    <StatusPill label="Suspicious behaviour observed" color="yellow" />
-  ) : (
+    <StatusPill
+      label={
+        prov.runtimeObserved
+          ? "Suspicious behaviour observed"
+          : "Suspicious behaviour reported — unverified"
+      }
+      color="yellow"
+    />
+  ) : prov.runtimeObserved ? (
     <StatusPill label="No suspicious flags" color="green" />
+  ) : (
+    <StatusPill label={prov.label} color={prov.tone} />
   );
 
   return (
     <AccordionSection id="section-runtime" title="Runtime Behaviour" defaultOpen={anyFlag} badge={badge}>
       <div className="space-y-4">
+        {/* Provenance banner — states plainly whether this is runtime evidence. */}
+        <div
+          className={`rounded-lg border p-3 text-xs ${
+            prov.tone === "green"
+              ? "border-green-200 bg-green-50 text-green-900"
+              : prov.tone === "yellow"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-gray-200 bg-gray-50 text-gray-700"
+          }`}
+        >
+          <p className="font-semibold">Evidence source: {prov.label}</p>
+          <p className="mt-1">{prov.summary}</p>
+          <p className="mt-1 text-[11px] opacity-80">{prov.containmentLabel}.</p>
+        </div>
         {/* Behaviour flags */}
         <div>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -723,7 +771,7 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                 {item.detected && (
                   <div className="mt-2 ml-6 space-y-1">
                     <p className="text-xs text-gray-700">
-                      <span className="font-semibold">Observed: </span>
+                      <span className="font-semibold">{prov.evidenceLabel}: </span>
                       {item.desc}
                     </p>
                     <p className="text-xs text-gray-600">
@@ -741,7 +789,9 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
         {networkCalls.length > 0 ? (
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Network Connections Observed ({networkCalls.length})
+              {prov.runtimeObserved
+                ? `Network Connections Observed (${networkCalls.length})`
+                : `Network Connections Reported (${networkCalls.length})`}
             </h3>
             <div className="overflow-hidden rounded-lg border border-gray-200">
               <table className="w-full text-xs">
@@ -750,6 +800,12 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                     <th className="px-3 py-2 text-left font-semibold text-gray-600">Destination</th>
                     <th className="px-3 py-2 text-left font-semibold text-gray-600">Port</th>
                     <th className="px-3 py-2 text-left font-semibold text-gray-600">Protocol</th>
+                    {/* Origin (how the row was produced) and Classification (what
+                        the row means) are separate columns on purpose. They used
+                        to share one column, where the threat marker "Flagged
+                        destination" alternated with the provenance word
+                        "Observed" — conflating evidence with assessment. */}
+                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Origin</th>
                     <th className="px-3 py-2 text-left font-semibold text-gray-600">Classification</th>
                   </tr>
                 </thead>
@@ -762,12 +818,25 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                       <td className="px-3 py-2 text-gray-700">{call.port ?? "—"}</td>
                       <td className="px-3 py-2 text-gray-700 uppercase">{call.protocol ?? "—"}</td>
                       <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            origin.tone === "green"
+                              ? "bg-green-100 text-green-800"
+                              : origin.tone === "yellow"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {origin.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
                         {call.sink === true ? (
                           <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                            Flagged destination
+                            Monitored sink
                           </span>
                         ) : (
-                          <span className="text-gray-500">Observed</span>
+                          <span className="text-gray-500">Unclassified</span>
                         )}
                       </td>
                     </tr>
@@ -781,7 +850,12 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
               )}
             </div>
             <p className="mt-1.5 text-xs text-gray-500">
-              Note: "Flagged destination" means the sandbox recorded this host as a monitored sink, not confirmed C2 infrastructure unless explicitly stated.
+              <span className="font-semibold">Origin</span> records how the row was
+              produced; <span className="font-semibold">Classification</span> records
+              what it means. "Monitored sink" means the sandbox recorded this host as a
+              monitored sink — not confirmed C2 infrastructure unless explicitly stated.
+              {prov.syntheticFindings &&
+                " Rows on this run were synthesised rather than captured from a device, so no destination below is evidence of a real connection attempt."}
             </p>
           </div>
         ) : (
@@ -789,7 +863,11 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
               Network Connections
             </h3>
-            <p className="text-sm text-gray-500">No network connections were recorded during dynamic analysis.</p>
+            <p className="text-sm text-gray-500">
+              {prov.runtimeObserved
+                ? "No network connections were recorded during the live sandbox run."
+                : "No network connections are listed. Because this finding did not come from a verified live run, this is not evidence that the application made no connections."}
+            </p>
           </div>
         )}
       </div>
@@ -1081,11 +1159,21 @@ function TTPSection({ ttps }: { ttps: TTPEntry[] }) {
 function LimitationsSection({
   overallState,
   issues,
+  provenance,
 }: {
   overallState: AnalysisOverallState;
   issues: AnalysisStage[];
+  provenance: SandboxProvenance | null;
 }) {
-  if (overallState !== "PARTIALLY_COMPLETED" && overallState !== "FAILED") return null;
+  const provenanceLimited = provenance?.degraded ?? false;
+  if (
+    overallState !== "PARTIALLY_COMPLETED" &&
+    overallState !== "FAILED" &&
+    overallState !== "COMPLETED_UNVERIFIED" &&
+    !provenanceLimited
+  ) {
+    return null;
+  }
 
   return (
     <section className="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
@@ -1098,8 +1186,21 @@ function LimitationsSection({
       <p className="mb-3 text-sm text-yellow-800">
         {overallState === "FAILED"
           ? "A critical pipeline stage failed. The final risk assessment may be incomplete or unavailable."
-          : "Some analysis stages did not complete successfully. The risk verdict is based on the evidence that was available."}
+          : overallState === "COMPLETED_UNVERIFIED"
+            ? "All pipeline stages completed, but the dynamic evidence in this report was not produced by a verified live sandbox execution."
+            : "Some analysis stages did not complete successfully. The risk verdict is based on the evidence that was available."}
       </p>
+      {provenanceLimited && provenance && (
+        <ul className="mb-3 space-y-1.5">
+          <li className="text-sm text-yellow-800">
+            <strong>Sandbox provenance</strong>: {provenance.label}. {provenance.summary}
+          </li>
+          <li className="text-sm text-yellow-800">
+            <strong>Containment</strong>: {provenance.containmentLabel}. Sandbox egress
+            containment is not asserted for this run.
+          </li>
+        </ul>
+      )}
       {issues.length > 0 && (
         <ul className="space-y-1.5">
           {issues.map((iss) => (
@@ -1210,7 +1311,15 @@ export default function ReportViewer({
       <TTPSection ttps={ttps} />
 
       {/* 9. Analysis Limitations */}
-      <LimitationsSection overallState={overallState} issues={issues} />
+      <LimitationsSection
+        overallState={overallState}
+        issues={issues}
+        provenance={
+          detail.dynamic_finding
+            ? deriveSandboxProvenance(detail.dynamic_finding)
+            : null
+        }
+      />
 
       {/* 10. Recommended Action */}
       <RecommendedActionSection verdict={verdict} />

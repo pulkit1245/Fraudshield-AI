@@ -182,11 +182,12 @@ class LLMOrchestrationService:
             from app.models.app_classification import AppClassification
             from app.services.permission_policy_service import PermissionPolicyService
 
-            cls_row = self.db.execute(
-                select(AppClassification).where(
-                    AppClassification.submission_id == submission_id
-                )
-            ).scalar_one_or_none()
+            with self.db.begin_nested():
+                cls_row = self.db.execute(
+                    select(AppClassification).where(
+                        AppClassification.submission_id == submission_id
+                    )
+                ).scalar_one_or_none()
             if cls_row is None:
                 return None
 

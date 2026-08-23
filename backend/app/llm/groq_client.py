@@ -20,8 +20,8 @@ from app.core.logging import get_logger
 log = get_logger(__name__)
 
 # Groq models — fast and capable
-FAST_MODEL   = "llama-3.3-70b-versatile"
-STRONG_MODEL = "llama-3.3-70b-versatile"
+FAST_MODEL   = "openai/gpt-oss-20b"
+STRONG_MODEL = "openai/gpt-oss-120b"
 ESCALATE_RISK_THRESHOLD = 0.6
 
 

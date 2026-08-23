@@ -221,6 +221,7 @@ def _sensitive_api_summary(dx, markers: Iterable[Any]) -> tuple[dict[str, int], 
                                      "severity": marker.severity, "requires_context": marker.requires_context})
     except Exception as exc:  # noqa: BLE001
         log.warning("androguard.api_scan_failed", error=str(exc))
+    counts = {k: v for k, v in counts.items() if v > 0}
     return counts, evidence
 
 

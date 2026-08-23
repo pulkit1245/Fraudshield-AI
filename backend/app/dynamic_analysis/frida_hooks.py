@@ -21,7 +21,9 @@ Owner: Member C — Dynamic Analysis & Data Infra Engineer.
 """
 from __future__ import annotations
 
+import os
 import subprocess
+import threading
 import time
 from typing import Any
 
@@ -161,13 +163,107 @@ def is_frida_server_running(serial: str, adb_bin: str = "adb") -> bool:
 # ── FridaRunner ───────────────────────────────────────────────────────────────
 
 class FridaRunner:
-    """Spawn + instrument an APK with Frida, collect hook events."""
+    """Spawn + instrument an APK with Frida, collect hook events.
+
+    Two usage modes:
+
+    Streaming (for exploration):
+        runner.start()               # spawns app, attaches, resumes — non-blocking
+        events = runner.snapshot()   # drain events since last snapshot (thread-safe)
+        runner.stop()                # detach
+
+    Blocking (backward-compat):
+        events = runner.run()        # start() + sleep(run_seconds) + stop()
+
+    All collected events are always available in runner.events (full list).
+    """
 
     def __init__(self, serial: str, package: str, run_seconds: int = 60) -> None:
         self.serial = serial
         self.package = package
         self.run_seconds = run_seconds
+        # Full event list — appended by on_message callback on the Frida thread
         self.events: list[dict[str, Any]] = []
+        # Pending buffer — drained on each snapshot() call
+        self._pending: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
+        self._session = None
+        self._device = None
+        self._pid: int | None = None
+        self._script = None
+
+    # ── Streaming API ─────────────────────────────────────────────────────
+
+    def start(self) -> None:
+        """Spawn the app, attach Frida, load hooks, resume — non-blocking.
+
+        Raises RuntimeError (frida not installed) or frida exceptions
+        (device/process unreachable). Callers must catch and fall back.
+        """
+        try:
+            import frida  # noqa: PLC0415
+        except ImportError as exc:
+            raise RuntimeError("frida Python package is not installed") from exc
+
+        self._device = frida.get_device(self.serial, timeout=15)
+        self._pid = self._device.spawn([self.package])
+        self._session = self._device.attach(self._pid)
+        
+        script_content = FRIDA_HOOK_JS
+        if os.getenv("ADVERSARIAL_TESTING_MODE") == "1":
+            try:
+                adv_path = os.path.join(os.path.dirname(__file__), "frida_adversarial_hooks.js")
+                with open(adv_path, "r") as f:
+                    script_content += "\n" + f.read()
+                log.info("frida.adversarial_hooks_loaded")
+            except Exception as e:
+                log.error("frida.adversarial_hooks_failed", error=str(e))
+
+        self._script = self._session.create_script(script_content)
+
+        def on_message(message: dict, _data: Any) -> None:
+            if message.get("type") == "send":
+                payload = message["payload"]
+                with self._lock:
+                    self.events.append(payload)
+                    self._pending.append(payload)
+            elif message.get("type") == "error":
+                log.warning(
+                    "frida.script_error",
+                    desc=message.get("description"),
+                    package=self.package,
+                )
+
+        self._script.on("message", on_message)
+        self._script.load()
+        self._device.resume(self._pid)
+        log.info("frida.started", package=self.package, serial=self.serial)
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        """Return events collected since the last snapshot and clear the buffer.
+
+        Thread-safe — the Frida callback thread appends while the caller drains.
+        Returns an empty list when Frida is not running.
+        """
+        with self._lock:
+            snapped = list(self._pending)
+            self._pending.clear()
+        return snapped
+
+    def stop(self) -> None:
+        """Detach the Frida session. Non-fatal — logs and swallows exceptions."""
+        try:
+            if self._session is not None:
+                self._session.detach()
+        except Exception:  # noqa: BLE001
+            pass
+        log.info(
+            "frida.stopped",
+            package=self.package,
+            total_events=len(self.events),
+        )
+
+    # ── Blocking backward-compat mode ────────────────────────────────────
 
     def run(self) -> list[dict[str, Any]]:
         """Attach to the package on `serial`, inject hooks, collect for run_seconds.
@@ -176,43 +272,9 @@ class FridaRunner:
         is not installed or the device/process cannot be reached — callers
         must catch and fall back to logcat.
         """
-        try:
-            import frida  # noqa: PLC0415
-        except ImportError as exc:
-            raise RuntimeError("frida Python package is not installed") from exc
-
-        device = frida.get_device(self.serial, timeout=15)
-        pid = device.spawn([self.package])
-        session = device.attach(pid)
-        script = session.create_script(FRIDA_HOOK_JS)
-
-        def on_message(message: dict, _data: Any) -> None:
-            if message.get("type") == "send":
-                self.events.append(message["payload"])
-            elif message.get("type") == "error":
-                log.warning(
-                    "frida.script_error",
-                    desc=message.get("description"),
-                    package=self.package,
-                )
-
-        script.on("message", on_message)
-        script.load()
-        device.resume(pid)
-
+        self.start()
         time.sleep(self.run_seconds)
-
-        try:
-            session.detach()
-        except Exception:  # noqa: BLE001
-            pass
-
-        log.info(
-            "frida.run_complete",
-            package=self.package,
-            serial=self.serial,
-            event_count=len(self.events),
-        )
+        self.stop()
         return self.events
 
 

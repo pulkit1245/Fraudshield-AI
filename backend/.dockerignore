@@ -1,6 +1,12 @@
 # ── FraudShield AI · backend .dockerignore ──────────────────────────────
 # Keeps the build context lean — only source code and requirements are needed.
 
+# Credentials — never enter the build context, so they can never be committed
+# to an image layer. The ADB keypair reaches worker-dynamic only through the
+# read-only bind mount in infra/docker-compose.yml. A previously-present private
+# key here is considered COMPROMISED; do not restore it.
+adb_keys/
+
 __pycache__/
 *.py[cod]
 *.egg-info/

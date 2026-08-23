@@ -35,13 +35,13 @@ COPY . .
 # Non-root runtime user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
 
-# Bake the host ADB keypair in so the dynamic worker can authenticate to
-# the Android emulator over host.docker.internal:5555 without manual setup.
-COPY --chown=appuser:appuser adb_keys/adbkey     /home/appuser/.android/adbkey
-COPY --chown=appuser:appuser adb_keys/adbkey.pub /home/appuser/.android/adbkey.pub
-RUN chmod 600 /home/appuser/.android/adbkey
-
-
+# ADB keypair is NEVER baked into the image. The dynamic worker receives the
+# host keypair at run time via the read-only bind mount declared in
+# infra/docker-compose.yml (worker-dynamic -> ~/.android/adbkey{,.pub}).
+# This directory must pre-exist and be owned by appuser: Docker creates a
+# missing bind-mount parent as root, which would leave adb unable to write
+# its own state (known_hosts) alongside the mounted key.
+RUN mkdir -p /home/appuser/.android && chown appuser:appuser /home/appuser/.android
 
 USER appuser
 

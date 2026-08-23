@@ -52,7 +52,7 @@ def run_dynamic_analysis(self, submission_id: str):
         # In simulate mode the sandbox derives findings from static signals.
         # If static analysis hasn't written its row yet, retry after a short
         # delay (up to 3 times) so the simulation has real data to work with.
-        sandbox_mode = os.getenv("SANDBOX_MODE", "simulate").lower()
+        sandbox_mode = os.getenv("SANDBOX_MODE", "live").lower()
         if sandbox_mode == "simulate":
             with session_scope() as db:
                 if not _static_finished(db, submission_id):

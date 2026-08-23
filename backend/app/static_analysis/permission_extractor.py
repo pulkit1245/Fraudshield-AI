@@ -31,11 +31,41 @@ HIGH_RISK_PERMISSIONS = {
 }
 
 # Dangerous combos: presence of all members is a strong fraud indicator.
+# ── Banking Trojans / Spyware (original) ─────────────────────────────────────
 RISKY_COMBOS = (
     ("android.permission.RECEIVE_SMS", "android.permission.SYSTEM_ALERT_WINDOW"),
     ("android.permission.BIND_ACCESSIBILITY_SERVICE",
      "android.permission.SYSTEM_ALERT_WINDOW"),
     ("android.permission.READ_SMS", "android.permission.REQUEST_INSTALL_PACKAGES"),
+
+    # ── Ransomware / Screen Lockers ───────────────────────────────────────────
+    # Device admin + boot persistence = classic screen locker pattern
+    ("android.permission.BIND_DEVICE_ADMIN",
+     "android.permission.RECEIVE_BOOT_COMPLETED"),
+    # Device admin + overlay = ransomware that draws over everything
+    ("android.permission.BIND_DEVICE_ADMIN",
+     "android.permission.SYSTEM_ALERT_WINDOW"),
+    # Keyguard disable = screen lock bypass
+    ("android.permission.DISABLE_KEYGUARD",
+     "android.permission.RECEIVE_BOOT_COMPLETED"),
+
+    # ── Droppers / Self-Updating Malware ─────────────────────────────────────
+    # Install packages + boot = dropper that survives reboot
+    ("android.permission.REQUEST_INSTALL_PACKAGES",
+     "android.permission.RECEIVE_BOOT_COMPLETED"),
+    # Install packages + overlay = social-engineering dropper
+    ("android.permission.REQUEST_INSTALL_PACKAGES",
+     "android.permission.SYSTEM_ALERT_WINDOW"),
+
+    # ── Stalkerware / Spyware extensions ─────────────────────────────────────
+    # Background location + contacts + boot = silent location tracker
+    ("android.permission.ACCESS_BACKGROUND_LOCATION",
+     "android.permission.READ_CONTACTS",
+     "android.permission.RECEIVE_BOOT_COMPLETED"),
+    # Camera + mic + background = covert surveillance
+    ("android.permission.CAMERA",
+     "android.permission.RECORD_AUDIO",
+     "android.permission.ACCESS_BACKGROUND_LOCATION"),
 )
 
 

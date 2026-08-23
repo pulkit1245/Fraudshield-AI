@@ -188,7 +188,13 @@ export default function SubmissionDetailPage() {
 
   const canReview = user?.role === "lead" || user?.role === "admin";
 
-  const { state: overallState, issues } = deriveAnalysisCompleteness(status.data);
+  // Sandbox provenance participates in completeness: an all-green pipeline whose
+  // dynamic evidence was simulated (or whose provenance was never recorded) is
+  // COMPLETED_UNVERIFIED, not COMPLETED.
+  const { state: overallState, issues } = deriveAnalysisCompleteness(
+    status.data,
+    detail.data?.dynamic_finding
+  );
   const isPartialAnalysis =
     overallState === "PARTIALLY_COMPLETED" || overallState === "FAILED";
 
@@ -320,7 +326,10 @@ export default function SubmissionDetailPage() {
 
       {/* Completeness card (partial/failed warnings) */}
       <SectionErrorBoundary title="Completeness">
-        <AnalysisCompletenessCard statusData={status.data ?? null} />
+        <AnalysisCompletenessCard
+          statusData={status.data ?? null}
+          dynamicFinding={detail.data?.dynamic_finding}
+        />
       </SectionErrorBoundary>
 
       {/* Pipeline status row (compact stage summary) */}

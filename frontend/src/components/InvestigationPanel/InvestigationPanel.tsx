@@ -340,10 +340,12 @@ export function InvestigationSummary({
           <span>Pipeline:</span>
           <span className={`font-medium ${
             overallState === "COMPLETED" ? "text-green-700" :
+            overallState === "COMPLETED_UNVERIFIED" ? "text-amber-700" :
             overallState === "PARTIALLY_COMPLETED" ? "text-amber-700" :
             overallState === "FAILED" ? "text-red-700" : "text-gray-600"
           }`}>
             {overallState === "COMPLETED" ? "✓ Complete" :
+             overallState === "COMPLETED_UNVERIFIED" ? "⚠ Complete (runtime unverified)" :
              overallState === "PARTIALLY_COMPLETED" ? "⚠ Partial" :
              overallState === "FAILED" ? "✗ Failed" : "In progress"}
           </span>

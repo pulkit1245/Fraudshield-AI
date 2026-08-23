@@ -6,41 +6,32 @@
 name: fraudshield
 
 # ── Shared env for every backend-derived service ────────────────────────────
-# NOTE: these are *overrides* layered on top of the repo-root .env (wired in via
-# `env_file` on x-backend-base below). Anything listed here WINS over .env, so
-# only put values here that must differ inside Compose (e.g. service hostnames).
-# Never list a secret here with an empty default — `FOO: ${FOO:-}` resolves from
-# your *shell*, not from .env, and an empty result silently shadows the real
-# value in .env. That is exactly how VIRUSTOTAL_API_KEY became "".
-#
-# This applies to the threat-intel settings too. GROQ_API_KEY, GEMINI_API_KEY,
-# VIRUSTOTAL_API_KEY, OTX_API_KEY and MALWAREBAZAAR_ENABLED are deliberately
-# NOT listed here — the TI fetchers read them with os.getenv() straight from the
-# container environment, which `env_file` already populates from the repo-root
-# .env (see .env.example for the full list and defaults).
 x-backend-env: &backend-env
   ENVIRONMENT: development
   DEBUG: "true"
-  DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield@postgres:5432/fraudshield
-  REDIS_URL: redis://redis:6379/0
-  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
-  JWT_SECRET: 37368421e70e4df1568ee40de408600396abc02036349b17798766cdeaf150db
+  DATABASE_URL: ${DATABASE_URL}
+  REDIS_URL: ${REDIS_URL}
+  RABBITMQ_URL: ${RABBITMQ_URL}
+  JWT_SECRET: ${JWT_SECRET}
   ACCESS_TOKEN_EXPIRE_MINUTES: "15"
   REFRESH_TOKEN_EXPIRE_DAYS: "7"
   STORAGE_BUCKET: fraudshield-apks
   STORAGE_REGION: us-east-005
   SANDBOX_MODE: live
   CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+  # LLM API keys — forwarded from .env
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+  VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+  
+  # Dynamic Analysis Configuration
+  EXPLORE_APK: ${EXPLORE_APK:-false}
 
 x-backend-base: &backend-base
   build:
     context: ../backend
     dockerfile: Dockerfile
-  # Secrets (VIRUSTOTAL_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, OTX_API_KEY,
-  # MALWAREBAZAAR_ENABLED, STORAGE_*) come from here. Path is relative to this
-  # compose file, so ../.env == repo-root .env. `required: false` keeps a fresh
-  # clone (no .env yet) bootable on the pydantic defaults instead of
-  # hard-failing. Needs Compose >= 2.24.
   env_file:
     - path: ../.env
       required: false
@@ -53,42 +44,51 @@ services:
   postgres:
     image: pgvector/pgvector:pg15
     environment:
-      POSTGRES_USER: fraudshield
-      POSTGRES_PASSWORD: fraudshield
-      POSTGRES_DB: fraudshield
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraudshield"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      - backend_net
+      - sandbox_net
 
   rabbitmq:
     image: rabbitmq:3.13-management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 10s
       retries: 10
     restart: unless-stopped
+    networks:
+      - backend_net
+      - sandbox_net
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    networks:
+      - backend_net
+      - sandbox_net
 
   storage-init:
     image: busybox
@@ -96,6 +96,8 @@ services:
     command: sh -c "mkdir -p /tmp/fraudshield-storage/apks && chown -R 1000:1000 /tmp/fraudshield-storage"
     volumes:
       - apk_storage:/tmp/fraudshield-storage
+    networks:
+      - backend_net
 
   # ── Backend API ─────────────────────────────────────────────────────────
   backend:
@@ -106,7 +108,7 @@ services:
     environment:
       <<: *backend-env
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:    { condition: service_healthy }
       rabbitmq:    { condition: service_healthy }
@@ -118,6 +120,8 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 5
+    networks:
+      - backend_net
 
   # ── Celery: static analysis queue ───────────────────────────────────────
   worker-static:
@@ -125,14 +129,14 @@ services:
     command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
     environment:
       <<: *backend-env
-    # The backend image ships a HEALTHCHECK that curls :8000/health; a Celery
-    # worker serves no HTTP, so it would sit permanently "unhealthy".
     healthcheck:
       disable: true
     depends_on:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    networks:
+      - backend_net
 
   # ── Celery: dynamic analysis queue ──────────────────────────────────────
   worker-dynamic:
@@ -141,9 +145,9 @@ services:
     environment:
       <<: *backend-env
       SANDBOX_MODE: live
-      # Connect to the Android emulator running on the host Mac via ADB-over-TCP.
-      # The emulator must be started on the host with: adb tcpip 5555
-      SANDBOX_ADB_HOST: "host.docker.internal:5555"
+      # Use Smart Socket Multiplexing to share the host ADB daemon
+      SANDBOX_ADB_SERIAL: "emulator-5554"
+      ADB_SERVER_SOCKET: "tcp:host.docker.internal:5038"
       ADB_BIN: adb
       # Respect the value set in .env (default was silently 60s because this
       # env block shadowed env_file for this specific variable).
@@ -154,18 +158,26 @@ services:
       backend:  { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    # NOTE: this list REPLACES the one from *backend-base (YAML merge keys do not
-    # concatenate sequences), so apk_storage must be repeated here.
     volumes:
       - apk_storage:/tmp/fraudshield-storage
-      # The worker must present the SAME ADB key the emulator has authorized.
-      # Read-only host mount — the key is never copied into the image.
-      # On Windows, use the explicit USERPROFILE path; Docker Desktop resolves
-      # ~ as the WSL home which won't match the Windows .android directory.
-      - C:\Users\AYUSH GUPTA\.android\adbkey:/home/appuser/.android/adbkey:ro
-      - C:\Users\AYUSH GUPTA\.android\adbkey.pub:/home/appuser/.android/adbkey.pub:ro
+      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
+      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - sandbox_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 4G
 
   # ── Celery Beat (scheduled tasks) ───────────────────────────────────────
   beat:
@@ -177,15 +189,15 @@ services:
       disable: true
     depends_on:
       backend: { condition: service_healthy }
+    networks:
+      - backend_net
 
   # ── Flower (Celery monitoring UI) ───────────────────────────────────────
   flower:
     <<: *backend-base
-    command: celery -A app.workers.celery_app flower --port=5555
+    command: celery -A app.workers.celery_app flower --port=5555 --basic-auth=${FLOWER_USER}:${FLOWER_PASSWORD}
     environment:
       <<: *backend-env
-    # Flower *does* serve HTTP, so it gets a real probe on its own port rather
-    # than inheriting the image's :8000 check (which would never pass here).
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5555/')\""]
       interval: 15s
@@ -193,10 +205,12 @@ services:
       start_period: 20s
       retries: 3
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5557:5555"
     depends_on:
       rabbitmq: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    networks:
+      - backend_net
 
   # ── Frontend (Vite → nginx) ──────────────────────────────────────────────
   frontend:
@@ -210,6 +224,12 @@ services:
     depends_on:
       backend: { condition: service_healthy }
     restart: unless-stopped
+    networks:
+      - backend_net
+
+networks:
+  backend_net:
+  sandbox_net:
 
 volumes:
   pgdata:

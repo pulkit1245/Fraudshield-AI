@@ -78,6 +78,12 @@ class DynamicFindingOut(BaseModel):
     network_calls: list[Any]
     sandbox_log_path: Optional[str] = None
     run_at: datetime
+    # Sandbox provenance (migration 0007). Optional-with-default keeps the
+    # response shape backward compatible: existing consumers that never read
+    # these keys are unaffected. `None` means UNKNOWN and must be rendered as
+    # such by clients — never as a successful live run.
+    mode: Optional[str] = None
+    containment_verified: Optional[bool] = None
 
 
 class ClusterSummary(BaseModel):

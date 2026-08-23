@@ -56,9 +56,7 @@ def run_scoring(self, submission_id: str):
         return summary
     except Exception as exc:  # noqa: BLE001
         log.error("scoring_task.failed", submission_id=submission_id, error=str(exc))
-        try:
-            raise self.retry(exc=exc)
-        except self.MaxRetriesExceededError:
+        if self.request.retries >= self.max_retries:
             with session_scope() as db:
                 from app.repositories.submission_repository import SubmissionRepository
 
@@ -69,7 +67,9 @@ def run_scoring(self, submission_id: str):
                 repo.update_analysis_stage(
                     submission_id, "ML Risk Scoring", "failed", error_message=str(exc)
                 )
-            raise
+            raise exc
+        else:
+            raise self.retry(exc=exc)
 
 
 def _enqueue_llm(submission_id: str) -> None:

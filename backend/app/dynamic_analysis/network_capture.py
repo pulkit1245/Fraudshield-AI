@@ -1,15 +1,8 @@
-"""Network capture against the isolated fake-DNS sink.
+"""Network observation via ADB /proc/net polling.
 
-The sandbox routes all emulator traffic to a fake-DNS/blackhole sink so nothing
-reaches the real internet; every DNS query and outbound connection attempt is
-recorded for the report (C2 endpoints, exfil hosts) without ever completing.
-
-`NetworkCapture` runs for the sandbox window and returns a normalized list of
-attempts: {host, port, protocol, ts}. Two sources are supported — a UDP DNS sink
-(preferred) and `adb logcat` connection-attempt scraping (fallback). Both degrade
-to an empty list when the tooling isn't present.
-
-Owner: Member C — Dynamic Analysis & Data Infra Engineer.
+Replaces the legacy container-loopback capture.
+Polls /proc/net/tcp, tcp6, and udp over adb shell to observe
+kernel-level socket creations attributed to the sample's UID.
 """
 from __future__ import annotations
 
@@ -26,23 +19,23 @@ from app.core.logging import get_logger
 log = get_logger(__name__)
 
 ADB_BIN = os.getenv("ADB_BIN", "adb")
-SINK_HOST = os.getenv("FAKE_DNS_HOST", "127.0.0.1")
-SINK_PORT = int(os.getenv("FAKE_DNS_PORT", "5353"))
 
-# Matches "connect to host:port" style hints in logcat.
-_CONN_RE = re.compile(r"(?:connect(?:ing)?\s+to|Host:)\s+([\w.\-]+)[:/](\d{1,5})",
-                      re.IGNORECASE)
+class NetworkObservationError(Exception):
+    pass
 
-
-class NetworkCapture:
-    def __init__(self, serial: str | None = None, duration: int = 60) -> None:
+class AdbNetworkObserver:
+    def __init__(self, serial: str, package_name: str, duration: int = 60) -> None:
         self.serial = serial
+        self.package_name = package_name
         self.duration = duration
         self._calls: list[dict[str, Any]] = []
         self._stop = threading.Event()
-        self._threads: list[threading.Thread] = []
+        self._thread: threading.Thread | None = None
+        self.uid: int | None = None
+        self.error: str | None = None
+        self._success = False
 
-    def __enter__(self) -> "NetworkCapture":
+    def __enter__(self) -> "AdbNetworkObserver":
         self.start()
         return self
 
@@ -50,68 +43,111 @@ class NetworkCapture:
         self.stop()
 
     def start(self) -> None:
-        self._threads = [threading.Thread(target=self._run_dns_sink, daemon=True)]
-        if self.serial:
-            self._threads.append(threading.Thread(target=self._scrape_logcat, daemon=True))
-        for t in self._threads:
-            t.start()
+        try:
+            self.uid = self._get_uid()
+            if self.uid is None:
+                log.warning("netobs.uid_not_found", package=self.package_name)
+                # We can't filter by UID if we don't have one, but we still run
+                # to catch if there's any ADB failure.
+        except Exception as exc:
+            self.error = f"Failed to get UID: {exc}"
+            log.error("netobs.uid_error", error=str(exc))
+            return
+
+        self._thread = threading.Thread(target=self._poll_proc_net, daemon=True)
+        self._thread.start()
 
     def stop(self) -> None:
         self._stop.set()
-        for t in self._threads:
-            t.join(timeout=2)
+        if self._thread:
+            self._thread.join(timeout=2)
 
-    # ── DNS sink: record queries, answer with a blackhole address ───────
-    def _run_dns_sink(self) -> None:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(0.5)
-            sock.bind((SINK_HOST, SINK_PORT))
-        except Exception as exc:  # noqa: BLE001
-            log.debug("netcap.sink_unavailable", error=str(exc))
-            return
+    def _get_uid(self) -> int | None:
+        """Resolve the package name to an Android UID using pm list packages -U."""
+        out = subprocess.run(
+            [ADB_BIN, "-s", self.serial, "shell", "pm", "list", "packages", "-U"],
+            capture_output=True, text=True, timeout=10, check=True
+        )
+        for line in out.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("package:" + self.package_name + " "):
+                m = re.search(r"uid:(\d+)", line)
+                if m:
+                    return int(m.group(1))
+        return None
+
+    def _poll_proc_net(self) -> None:
         deadline = time.time() + self.duration
-        while not self._stop.is_set() and time.time() < deadline:
-            try:
-                data, addr = sock.recvfrom(512)
-            except socket.timeout:
+        poll_interval = 1.0
+
+        self._success = True
+        try:
+            while not self._stop.is_set() and time.time() < deadline:
+                for proto in ["tcp", "tcp6", "udp"]:
+                    try:
+                        out = subprocess.run(
+                            [ADB_BIN, "-s", self.serial, "shell", f"cat /proc/net/{proto}"],
+                            capture_output=True, text=True, timeout=15, check=True
+                        )
+                        self._parse_and_attribute(out.stdout, proto)
+                    except subprocess.CalledProcessError as exc:
+                        raise NetworkObservationError(f"Failed to read /proc/net/{proto}: {exc.stderr}") from exc
+                
+                time.sleep(poll_interval)
+
+        except Exception as exc:
+            self._success = False
+            self.error = str(exc)
+            log.error("netobs.poll_error", error=self.error)
+
+    def _parse_and_attribute(self, proc_net_output: str, protocol: str) -> None:
+        if self.uid is None:
+            return
+
+        lines = proc_net_output.strip().splitlines()
+        if not lines:
+            return
+
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) < 8:
                 continue
-            except Exception:  # noqa: BLE001
-                break
-            host = _parse_dns_qname(data)
-            if host:
-                self._calls.append({
-                    "host": host, "port": 53, "protocol": "dns",
-                    "ts": time.time(), "sink": True,
-                })
-        sock.close()
+            
+            local_addr = parts[1]
+            rem_addr = parts[2]
+            uid_str = parts[7]
 
-    # ── logcat fallback ─────────────────────────────────────────────────
-    def _scrape_logcat(self) -> None:
-        try:
-            proc = subprocess.Popen(
-                [ADB_BIN, "-s", self.serial, "logcat", "-v", "brief"],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-            )
-        except Exception as exc:  # noqa: BLE001
-            log.debug("netcap.logcat_unavailable", error=str(exc))
-            return
-        deadline = time.time() + self.duration
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            if self._stop.is_set() or time.time() > deadline:
-                break
-            m = _CONN_RE.search(line)
-            if m:
-                self._calls.append({
-                    "host": m.group(1), "port": int(m.group(2)),
-                    "protocol": "tcp", "ts": time.time(), "sink": True,
-                })
-        proc.terminate()
+            try:
+                socket_uid = int(uid_str)
+            except ValueError:
+                continue
+
+            if socket_uid != self.uid:
+                continue
+
+            rem_ip_hex, rem_port_hex = rem_addr.split(":")
+            
+            # Skip listening sockets (0.0.0.0 or ::)
+            if all(c == '0' for c in rem_ip_hex):
+                continue
+
+            rem_ip = _decode_ip(rem_ip_hex)
+            rem_port = int(rem_port_hex, 16)
+
+            self._calls.append({
+                "host": rem_ip,
+                "port": rem_port,
+                "protocol": "udp" if protocol == "udp" else "tcp",
+                "ts": time.time(),
+                "sink": False
+            })
 
     @property
-    def calls(self) -> list[dict[str, Any]]:
-        # De-duplicate on (host, port).
+    def calls(self) -> list[dict[str, Any]] | None:
+        """Returns the deduplicated network observations, or None if observation failed."""
+        if self.error is not None or not self._success:
+            return None
+        
         seen, unique = set(), []
         for c in self._calls:
             key = (c["host"], c["port"])
@@ -120,18 +156,16 @@ class NetworkCapture:
                 unique.append(c)
         return unique
 
-
-def _parse_dns_qname(packet: bytes) -> str | None:
-    """Extract the queried name from a raw DNS request packet."""
+def _decode_ip(hex_str: str) -> str:
+    """Decodes little-endian hex IP address to string."""
     try:
-        idx = 12  # skip the 12-byte header
-        labels = []
-        while idx < len(packet):
-            length = packet[idx]
-            if length == 0:
-                break
-            labels.append(packet[idx + 1: idx + 1 + length].decode("ascii", "ignore"))
-            idx += length + 1
-        return ".".join(labels) or None
-    except Exception:  # noqa: BLE001
-        return None
+        if len(hex_str) == 8: # IPv4
+            b = bytes.fromhex(hex_str)
+            return socket.inet_ntoa(b[::-1])
+        elif len(hex_str) == 32: # IPv6
+            words = [hex_str[i:i+8] for i in range(0, 32, 8)]
+            b = b"".join(bytes.fromhex(w)[::-1] for w in words)
+            return socket.inet_ntop(socket.AF_INET6, b)
+    except Exception:
+        pass
+    return hex_str

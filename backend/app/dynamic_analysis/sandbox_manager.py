@@ -26,8 +26,11 @@ from app.utils.file_storage import storage
 
 log = get_logger(__name__)
 
-ADB_BIN = os.getenv("ADB_BIN", "adb")
+ADB_BIN     = os.getenv("ADB_BIN", "adb")
 RUN_SECONDS = int(os.getenv("SANDBOX_RUN_SECONDS", "60"))
+# Enable active APK exploration (bounded DFS) in live mode.
+# When false (default), live mode falls back to passive Frida observation.
+_EXPLORE_APK = os.getenv("EXPLORE_APK", "false").lower() == "true"
 
 
 class SandboxManager:
@@ -60,9 +63,6 @@ class SandboxManager:
             try:
                 return self._run_live(submission_id, apk_path, package_name)
             except Exception as exc:  # noqa: BLE001
-                if "INSTALL_FAILED_MISSING_SPLIT" in str(exc) or "adb install failed" in str(exc):
-                    log.warning("sandbox.live_install_failed_fallback_simulate", error=str(exc))
-                    return self._run_simulated(submission_id, static_hint or {})
                 log.error("sandbox.live_failed", error=str(exc))
                 raise
         elif self.mode == "simulate":
@@ -99,108 +99,199 @@ class SandboxManager:
             "mobsf_findings":      findings,
         }
 
-    # ── live path (Frida-primary, logcat fallback) ──────────────────────
+    # ── live path (Frida-primary + optional exploration) ────────────────
     def _run_live(self, submission_id, apk_path, package_name) -> dict[str, Any]:
-        """Install APK on emulator, instrument with Frida (logcat fallback), then uninstall."""
-        inst = self._pool.acquire()
-        pkg = package_name or self._infer_package(apk_path)
-        try:
-            log.info("sandbox.live.install", serial=inst.serial, pkg=pkg)
+        """Install APK, instrument with Frida, explore or passively observe, uninstall.
 
-            # 1. Install — permissive flags for research/dev APKs
-            # Android 14+ blocks low target SDKs by default, bypass it.
+        Execution order:
+          1. adb install
+          2. adb logcat -c
+          3. AdbNetworkObserver → /proc/net polling thread (unchanged)
+          4a. EXPLORE_APK=true  → FridaRunner.start() (streaming) + monkey
+              fallback, then ApkExplorer.explore(), then FridaRunner.stop()
+          4b. EXPLORE_APK=false → FridaRunner.run() (start+sleep+stop via one
+              seam); on raise, monkey launch + logcat fallback
+          5. Phase 4 cleanup in finally (unchanged)
+        """
+        inst = self._pool.acquire()
+        pkg  = package_name or self._infer_package(apk_path)
+        explore_result = None
+
+        try:
+            # ── 1. Install ────────────────────────────────────────────────
+            log.info("sandbox.live.install", serial=inst.serial, pkg=pkg)
             install = subprocess.run(
-                [ADB_BIN, "-s", inst.serial, "install", "--bypass-low-target-sdk-block", "-r", "-d", "-t", apk_path],
+                [ADB_BIN, "-s", inst.serial, "install",
+                 "--bypass-low-target-sdk-block", "-r", "-d", "-t", apk_path],
                 capture_output=True, text=True, timeout=120,
             )
             if install.returncode != 0:
                 raise RuntimeError(
-                    f"adb install failed: {install.stderr.strip() or install.stdout.strip()}"
+                    f"adb install failed: "
+                    f"{install.stderr.strip() or install.stdout.strip()}"
                 )
             log.info("sandbox.live.installed", pkg=pkg)
 
-            # 2. Clear logcat buffer
+            # ── 2. Clear logcat buffer ────────────────────────────────────
             subprocess.run([ADB_BIN, "-s", inst.serial, "logcat", "-c"],
                            capture_output=True, timeout=5)
 
-            # 3. Launch the app via monkey
-            subprocess.run(
-                [ADB_BIN, "-s", inst.serial, "shell",
-                 "monkey", "-p", pkg, "-c",
-                 "android.intent.category.LAUNCHER", "1"],
-                capture_output=True, text=True, timeout=15,
-            )
-            log.info("sandbox.live.launched", pkg=pkg, run_seconds=RUN_SECONDS)
-
-            # 4. Run Frida + NetworkCapture concurrently for RUN_SECONDS
+            # ── 3. Launch + observe: Frida (primary) / monkey (fallback) ──
             from app.dynamic_analysis.frida_hooks import FridaRunner, summarize_events
-            from app.dynamic_analysis.network_capture import NetworkCapture
+            from app.dynamic_analysis.network_capture import AdbNetworkObserver
 
-            frida_events: list[dict] = []
-            frida_error: Exception | None = None
+            frida_runner = FridaRunner(inst.serial, pkg, run_seconds=RUN_SECONDS)
+            frida_error:  Exception | None = None
+            frida_used    = False
             logcat_output = ""
+            events: list[dict] = []
 
-            with NetworkCapture(inst.serial, duration=RUN_SECONDS) as observer:
-                # ── Frida: primary path ──────────────────────────────────
-                frida_start = time.monotonic()
-                try:
-                    runner = FridaRunner(inst.serial, pkg, run_seconds=RUN_SECONDS)
-                    frida_events = runner.run()   # blocks for RUN_SECONDS
-                    log.info(
-                        "sandbox.live.frida_done",
-                        pkg=pkg,
-                        event_count=len(frida_events),
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    frida_error = exc
-                    frida_elapsed = time.monotonic() - frida_start
-                    log.warning(
-                        "sandbox.live.frida_failed",
-                        pkg=pkg,
-                        error=str(exc),
-                        fallback="logcat",
-                    )
-                    # ── Logcat: fallback path ────────────────────────────
-                    logcat_proc = subprocess.Popen(
-                        [ADB_BIN, "-s", inst.serial, "logcat", "-v", "brief"],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-                    )
-                    # Only sleep the *remaining* time — Frida already consumed
-                    # frida_elapsed seconds, so sleeping a full RUN_SECONDS
-                    # again would double the total sandbox wall-clock time.
-                    remaining = max(0.0, RUN_SECONDS - frida_elapsed)
-                    if remaining > 0:
-                        time.sleep(remaining)
-                    logcat_proc.terminate()
+            # ── 4 + 5. NetworkObserver + Exploration/Passive ───────────────
+            with AdbNetworkObserver(inst.serial, pkg,
+                                    duration=RUN_SECONDS) as observer:
+
+                if _EXPLORE_APK:
+                    # ── Active exploration path (streaming Frida) ────────
+                    # Frida spawn = launch + instrument atomically. On failure,
+                    # monkey-launch so the app at least runs; the explorer then
+                    # verifies/relaunches until the target is foreground.
                     try:
-                        logcat_output, _ = logcat_proc.communicate(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        logcat_proc.kill()
-                        logcat_output = ""
+                        frida_runner.start()
+                        frida_used = True
+                        log.info("sandbox.live.launched_via_frida", pkg=pkg,
+                                 run_seconds=RUN_SECONDS)
+                    except Exception as exc:  # noqa: BLE001
+                        frida_error = exc
+                        log.warning(
+                            "sandbox.live.frida_start_failed",
+                            pkg=pkg, error=str(exc), fallback="monkey",
+                        )
+                        subprocess.run(
+                            [ADB_BIN, "-s", inst.serial, "shell",
+                             "monkey", "-p", pkg, "-c",
+                             "android.intent.category.LAUNCHER", "1"],
+                            capture_output=True, text=True, timeout=15,
+                        )
+                        log.info("sandbox.live.launched_via_monkey", pkg=pkg)
 
-            observed_calls = observer.calls
+                    from app.dynamic_analysis.apk_explorer import (
+                        ApkExplorer, ExplorerConfig,
+                    )
+                    cfg = ExplorerConfig(adb_bin=ADB_BIN)
+                    explorer = ApkExplorer(
+                        serial=inst.serial,
+                        package=pkg,
+                        frida_runner=frida_runner if frida_used else None,
+                        network_observer=observer,
+                        config=cfg,
+                        frida_error=frida_error,
+                    )
+                    explore_result = explorer.explore()
+                    log.info(
+                        "sandbox.live.exploration_done",
+                        pkg=pkg,
+                        actions=explore_result.actions_executed,
+                        states=explore_result.states_visited,
+                        depth=explore_result.max_depth_reached,
+                        frida_used=explore_result.frida_used,
+                    )
+                    # ── Stop streaming Frida ─────────────────────────────
+                    if frida_used:
+                        frida_runner.stop()
 
-            # 5. Build flags from whichever source was available
-            if frida_error is None:
-                # Frida succeeded — use its summary
-                summary = summarize_events(frida_events)
+                else:
+                    # ── Passive observation path — via FridaRunner.run() ──
+                    # Use the run() abstraction (start + sleep + stop) so the
+                    # Frida-primary / logcat-fallback contract is honoured
+                    # through a single seam. run() returning [] is a VALID
+                    # zero-event result (frida_used stays True); only a raise
+                    # means Frida was unavailable and we fall back to logcat.
+                    try:
+                        events = frida_runner.run()
+                        frida_used = True
+                        log.info("sandbox.live.frida_passive_done", pkg=pkg,
+                                 events=len(events), run_seconds=RUN_SECONDS)
+                    except Exception as exc:  # noqa: BLE001
+                        frida_error = exc
+                        frida_used = False
+                        log.warning(
+                            "sandbox.live.frida_run_failed",
+                            pkg=pkg, error=str(exc), fallback="monkey+logcat",
+                        )
+                        # Fallback: launch via monkey so the app at least runs
+                        subprocess.run(
+                            [ADB_BIN, "-s", inst.serial, "shell",
+                             "monkey", "-p", pkg, "-c",
+                             "android.intent.category.LAUNCHER", "1"],
+                            capture_output=True, text=True, timeout=15,
+                        )
+                        log.info("sandbox.live.launched_via_monkey", pkg=pkg)
+                        # Logcat fallback when Frida completely unavailable
+                        logcat_proc = subprocess.Popen(
+                            [ADB_BIN, "-s", inst.serial, "logcat", "-v", "brief"],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            text=True,
+                        )
+                        time.sleep(RUN_SECONDS)
+                        logcat_proc.terminate()
+                        try:
+                            logcat_output, _ = logcat_proc.communicate(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            logcat_proc.kill()
+                            logcat_output = ""
+
+                observed_calls = observer.calls
+
+            # ── Build flags from whichever source was available ────────────
+            if _EXPLORE_APK and explore_result is not None:
+                # Exploration result → summarize ALL Frida events
+                all_events = explore_result.all_frida_events
+                if explore_result.frida_used and all_events is not None:
+                    summary = summarize_events(all_events)
+                    flags = {
+                        "sms_access":          summary["sms_access"],
+                        "accessibility_abuse": summary["accessibility_abuse"],
+                        "overlay_detected":    summary["overlay_detected"],
+                    }
+                    events       = all_events
+                    network_calls: list[dict] = []
+                    frida_used   = True
+                    extended = {
+                        "clipboard_theft":       summary.get("clipboard_theft", False),
+                        "shell_exec_detected":   summary.get("shell_exec_detected", False),
+                        "package_enum_detected": summary.get("package_enum_detected", False),
+                    }
+                else:
+                    # Explorer ran but Frida was unavailable — use logcat
+                    flags, network_calls, events = _parse_logcat("", pkg)
+                    frida_used = False
+                    extended   = {}
+
+                extended.update({
+                    "exploration_mode":  explore_result.exploration_mode,
+                    "actions_executed":  explore_result.actions_executed,
+                    "states_visited":    explore_result.states_visited,
+                    "max_depth_reached": explore_result.max_depth_reached,
+                    "action_trace":      explore_result.action_trace,
+                })
+
+            elif frida_used:
+                # Passive Frida path — events captured from FridaRunner.run()
+                summary = summarize_events(events)
                 flags = {
                     "sms_access":          summary["sms_access"],
                     "accessibility_abuse": summary["accessibility_abuse"],
                     "overlay_detected":    summary["overlay_detected"],
                 }
-                events = frida_events
-                network_calls: list[dict] = []   # /proc/net covers this
-                frida_used = True
+                network_calls = []
                 extended = {
                     "clipboard_theft":       summary.get("clipboard_theft", False),
                     "shell_exec_detected":   summary.get("shell_exec_detected", False),
                     "package_enum_detected": summary.get("package_enum_detected", False),
                 }
             else:
-                # Logcat fallback — parse regex patterns
+                # Logcat fallback (original behaviour)
                 flags, network_calls, events = _parse_logcat(logcat_output, pkg)
-                frida_used = False
                 extended = {}
 
             log.info(
@@ -212,27 +303,33 @@ class SandboxManager:
             )
 
         finally:
-            # 6. Clean up emulator — unchanged from Phase 4 baseline
+            # ── Phase 4 cleanup — UNCHANGED ───────────────────────────────
             try:
-                subprocess.run([ADB_BIN, "-s", inst.serial, "shell",
-                                "am", "force-stop", pkg],
-                               capture_output=True, timeout=10)
-                subprocess.run([ADB_BIN, "-s", inst.serial, "uninstall", pkg],
-                               capture_output=True, timeout=30)
+                subprocess.run(
+                    [ADB_BIN, "-s", inst.serial, "shell", "am", "force-stop", pkg],
+                    capture_output=True, timeout=10,
+                )
+                subprocess.run(
+                    [ADB_BIN, "-s", inst.serial, "uninstall", pkg],
+                    capture_output=True, timeout=30,
+                )
                 log.info("sandbox.live.uninstalled", pkg=pkg)
             except Exception:  # noqa: BLE001
                 pass
             self._pool.release(inst)
 
         log_blob = {
-            "mode": "live", "package": pkg,
-            "run_seconds": RUN_SECONDS,
-            "frida_used": frida_used,
-            "frida_error": str(frida_error) if frida_error else None,
-            "events": events, "network_calls": network_calls,
+            "mode":                   "live",
+            "package":                pkg,
+            "run_seconds":            RUN_SECONDS,
+            "explore_enabled":        _EXPLORE_APK,
+            "frida_used":             frida_used,
+            "frida_error":            str(frida_error) if frida_error else None,
+            "events":                 events,
+            "network_calls":          network_calls,
             "observed_network_calls": observed_calls,
-            "extended": extended,
-            "ts": time.time(),
+            "extended":               extended,
+            "ts":                     time.time(),
         }
         log_path = self._store_log(submission_id, log_blob)
         return {
@@ -241,6 +338,10 @@ class SandboxManager:
             "overlay_detected":       flags["overlay_detected"],
             "network_calls":          network_calls,
             "observed_network_calls": observed_calls,
+            # Raw behaviour events (Frida when available, else parsed logcat) —
+            # persisted to dynamic_findings.frida_events for the audit report.
+            # Not a scoring feature; kept out of network_calls (decision D3).
+            "frida_events":           events,
             "sandbox_log_path":       log_path,
             "mode":                   "live",
             "frida_used":             frida_used,

@@ -194,7 +194,8 @@ class TestSandboxManagerFridaIntegration:
 
         fake_events = [{"kind": "accessibility_event", "detail": {}, "ts": 0}]
 
-        with patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
+        with patch("app.dynamic_analysis.sandbox_manager._EXPLORE_APK", False), \
+             patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
                    return_value=fake_events), \
              patch("app.dynamic_analysis.network_capture.AdbNetworkObserver") as mock_obs, \
              patch("app.dynamic_analysis.sandbox_manager.SandboxManager._store_log",
@@ -224,7 +225,8 @@ class TestSandboxManagerFridaIntegration:
             communicate=MagicMock(return_value=("", "")),
         )
 
-        with patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
+        with patch("app.dynamic_analysis.sandbox_manager._EXPLORE_APK", False), \
+             patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
                    side_effect=RuntimeError("frida-server not running")), \
              patch("app.dynamic_analysis.network_capture.AdbNetworkObserver") as mock_obs, \
              patch("app.dynamic_analysis.sandbox_manager.SandboxManager._store_log",
@@ -254,7 +256,8 @@ class TestSandboxManagerFridaIntegration:
             communicate=MagicMock(return_value=("", ""))
         )
 
-        with patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
+        with patch("app.dynamic_analysis.sandbox_manager._EXPLORE_APK", False), \
+             patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
                    side_effect=RuntimeError("frida unavailable")), \
              patch("app.dynamic_analysis.network_capture.AdbNetworkObserver") as mock_obs, \
              patch("app.dynamic_analysis.sandbox_manager.SandboxManager._store_log",
@@ -281,7 +284,8 @@ class TestSandboxManagerFridaIntegration:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         fake_events = [{"kind": "shell_exec", "detail": {"cmd": "id"}, "ts": 0}]
 
-        with patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
+        with patch("app.dynamic_analysis.sandbox_manager._EXPLORE_APK", False), \
+             patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
                    return_value=fake_events), \
              patch("app.dynamic_analysis.network_capture.AdbNetworkObserver") as mock_obs_cls, \
              patch("app.dynamic_analysis.sandbox_manager.SandboxManager._store_log",
@@ -309,7 +313,8 @@ class TestSandboxManagerFridaIntegration:
         """Frida returning zero events (e.g. interactive APK) is a valid result."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
+        with patch("app.dynamic_analysis.sandbox_manager._EXPLORE_APK", False), \
+             patch("app.dynamic_analysis.frida_hooks.FridaRunner.run",
                    return_value=[]), \
              patch("app.dynamic_analysis.network_capture.AdbNetworkObserver") as mock_obs, \
              patch("app.dynamic_analysis.sandbox_manager.SandboxManager._store_log",

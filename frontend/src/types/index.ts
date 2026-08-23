@@ -16,6 +16,13 @@ export type SubmissionStatus =
   | "completed"
   | "failed";
 
+/**
+ * How a dynamic finding was actually produced. `null`/`undefined` (absent) is a
+ * fourth, distinct state meaning UNKNOWN provenance — it must never be
+ * displayed as, or defaulted to, a real live sandbox run.
+ */
+export type SandboxMode = "live" | "simulate" | "mobsf";
+
 // ── auth ──────────────────────────────────────────────────────────────
 export interface UserProfile {
   id: string;
@@ -82,6 +89,18 @@ export interface DynamicFindingOut {
   network_calls: unknown[];
   sandbox_log_path?: string | null;
   run_at: string;
+  /**
+   * Which sandbox path actually produced this finding: "live", "simulate" or
+   * "mobsf". `null`/`undefined` means UNKNOWN — the row predates provenance
+   * tracking. Never render an unknown mode as a live run.
+   */
+  mode?: SandboxMode | null;
+  /**
+   * Whether egress containment was actually demonstrated for this run.
+   * Three-valued: `null`/`undefined` = not probed / unknown, `false` = probed
+   * and containment did not hold, `true` = probed and demonstrated.
+   */
+  containment_verified?: boolean | null;
 }
 export interface ClusterSummaryOut {
   id: string;

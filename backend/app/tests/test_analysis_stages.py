@@ -178,3 +178,36 @@ def test_status_endpoint_backward_compatibility():
     assert "stage_detail" in json_resp
     assert "analysis_stages" in json_resp
     db.close()
+
+from unittest.mock import patch
+
+@patch("app.workers.tasks.static_task._dynamic_finished", return_value=True)
+@patch("app.workers.tasks.static_task._enqueue_scoring")
+@patch("app.workers.tasks.static_task.StaticAnalysisService.analyze")
+def test_static_failure_halts_pipeline(mock_analyze, mock_enqueue, mock_dynamic_finished):
+    from app.workers.tasks.static_task import run_static_analysis
+    db = TestingSessionLocal()
+    sub_id = create_test_submission(db)
+    
+    mock_analyze.side_effect = Exception("Simulated static analyzer crash")
+    
+    # In Celery tasks, self.retry is usually raised. We need to handle/mock it 
+    # to avoid the test failing from the retry exception, or catch the retry exception.
+    with patch("app.workers.tasks.static_task.celery_app.Task.retry", side_effect=Exception("RetryRequested")):
+        try:
+            run_static_analysis(sub_id)
+        except Exception as e:
+            assert str(e) == "RetryRequested"
+
+    # Verify scoring was never enqueued
+    mock_enqueue.assert_not_called()
+    
+    # Verify the submission is NOT advanced to scoring
+    repo = SubmissionRepository(db)
+    sub = repo.get(uuid.UUID(sub_id))
+    # It should still be at "static_running", or whatever the last state was
+    # since it raised an exception and didn't complete.
+    # The retry exception skips the code that sets it to failed (MaxRetriesExceededError does that).
+    assert sub.status != "scoring"
+    
+    db.close()
