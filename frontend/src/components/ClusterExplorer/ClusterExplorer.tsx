@@ -15,7 +15,7 @@ const H = 420;
 export default function ClusterExplorer({ clusters, selectedId, onSelect }: ClusterExplorerProps) {
   if (clusters.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+      <div className="rounded-xl border border-border bg-background-elevated p-8 text-center text-sm text-text-muted/50">
         No campaign clusters yet. Clusters form as repackaged variants are analyzed.
       </div>
     );
@@ -38,8 +38,8 @@ export default function ClusterExplorer({ clusters, selectedId, onSelect }: Clus
   });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-700">Campaign clusters</h2>
+    <div className="rounded-xl border border-border bg-background-elevated p-4">
+      <h2 className="mb-2 text-sm font-semibold text-text">Campaign clusters</h2>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Cluster explorer">
         {nodes.map((n) => (
           <line key={`l-${n.id}`} x1={cx} y1={cy} x2={n.x} y2={n.y}

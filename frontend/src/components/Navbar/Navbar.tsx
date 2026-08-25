@@ -8,7 +8,7 @@ export default function Navbar() {
     <Link
       to={to}
       className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-        pathname === to ? "bg-indigo-100 text-indigo-800" : "text-gray-600 hover:bg-gray-100"
+        pathname === to ? "bg-primary-blue/10 text-primary-blue" : "text-text-muted hover:bg-background-surface"
       }`}
     >
       {label}
@@ -16,9 +16,9 @@ export default function Navbar() {
   );
 
   return (
-    <header className="no-print flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
+    <header className="no-print flex items-center justify-between border-b border-border bg-background-elevated px-6 py-3">
       <div className="flex items-center gap-6">
-        <span className="text-base font-extrabold text-gray-900">FraudShield AI</span>
+        <span className="text-base font-extrabold text-text-bright">FraudShield AI</span>
         <nav className="flex items-center gap-1">
           {link("/", "Dashboard")}
           {link("/clusters", "Clusters")}
@@ -26,13 +26,13 @@ export default function Navbar() {
       </div>
       <div className="flex items-center gap-3 text-sm">
         {user && (
-          <span className="text-gray-500">
+          <span className="text-text-muted">
             {user.email} · <span className="font-semibold">{user.role}</span>
           </span>
         )}
         <button
           onClick={logout}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-border px-3 py-1.5 text-text hover:bg-background-surface"
         >
           Sign out
         </button>

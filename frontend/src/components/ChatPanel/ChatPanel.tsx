@@ -21,7 +21,7 @@ const SUGGESTED_QUESTIONS = [
 // ── Icons (inline SVG, no library dependency) ────────────────────────────
 function UserIcon() {
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-bold">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-blue text-white text-xs font-bold">
       U
     </span>
   );
@@ -48,7 +48,7 @@ function TypingIndicator() {
   return (
     <div className="flex items-end gap-2">
       <AssistantIcon />
-      <div className="rounded-2xl rounded-bl-sm bg-gray-100 px-4 py-3">
+      <div className="rounded-2xl rounded-bl-sm bg-background-surface px-4 py-3">
         <div className="flex gap-1 items-center">
           <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0ms" }} />
           <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -74,7 +74,7 @@ function SourceChips({ sources }: { sources: ChatSource[] }) {
 
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      <span className="text-xs text-gray-400">Sources:</span>
+      <span className="text-xs text-text-muted/50">Sources:</span>
       {sources.map((s, i) => (
         <span
           key={i}
@@ -95,7 +95,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   if (isUser) {
     return (
       <div className="flex items-end justify-end gap-2">
-        <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-indigo-600 px-4 py-2.5 text-sm text-white">
+        <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary-blue px-4 py-2.5 text-sm text-white">
           {msg.text}
         </div>
         <UserIcon />
@@ -113,15 +113,15 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
     <div className="flex items-start gap-2">
       <AssistantIcon />
       <div className="max-w-[85%]">
-        <div className="rounded-2xl rounded-tl-sm bg-gray-100 px-4 py-2.5">
+        <div className="rounded-2xl rounded-tl-sm bg-background-surface px-4 py-2.5">
           {hasStructure ? (
-            <div className="space-y-1 text-sm text-gray-800">
+            <div className="space-y-1 text-sm text-text-bright">
               {lines.map((line, i) => {
                 if (line.startsWith("# ")) {
-                  return <p key={i} className="font-bold text-gray-900 text-base">{line.slice(2)}</p>;
+                  return <p key={i} className="font-bold text-text-bright text-base">{line.slice(2)}</p>;
                 }
                 if (line.startsWith("## ")) {
-                  return <p key={i} className="font-semibold text-gray-800 mt-2">{line.slice(3)}</p>;
+                  return <p key={i} className="font-semibold text-text-bright mt-2">{line.slice(3)}</p>;
                 }
                 if (line.match(/^\d+\./)) {
                   return <p key={i} className="ml-3">{line}</p>;
@@ -129,19 +129,19 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
                 if (line.startsWith("- ") || line.startsWith("• ")) {
                   return (
                     <p key={i} className="ml-3 flex gap-1.5">
-                      <span className="shrink-0 text-gray-400">•</span>
+                      <span className="shrink-0 text-text-muted/50">•</span>
                       <span>{line.replace(/^[-•]\s*/, "")}</span>
                     </p>
                   );
                 }
                 if (line.startsWith("**") && line.endsWith("**")) {
-                  return <p key={i} className="font-semibold text-gray-900">{line.slice(2, -2)}</p>;
+                  return <p key={i} className="font-semibold text-text-bright">{line.slice(2, -2)}</p>;
                 }
                 return <p key={i}>{line}</p>;
               })}
             </div>
           ) : (
-            <p className="text-sm text-gray-800 leading-relaxed">{msg.text}</p>
+            <p className="text-sm text-text-bright leading-relaxed">{msg.text}</p>
           )}
         </div>
         {msg.sources && <SourceChips sources={msg.sources} />}
@@ -161,8 +161,8 @@ function EmptyState({
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-2xl">
         🛡
       </div>
-      <p className="text-sm font-semibold text-gray-700 mb-1">APK Security Assistant</p>
-      <p className="text-xs text-gray-500 mb-4 max-w-xs">
+      <p className="text-sm font-semibold text-text mb-1">APK Security Assistant</p>
+      <p className="text-xs text-text-muted mb-4 max-w-xs">
         Ask questions about this APK. All answers are grounded in the analysis evidence — the assistant will not invent findings.
       </p>
       <div className="w-full max-w-md grid grid-cols-1 gap-1.5">
@@ -170,7 +170,7 @@ function EmptyState({
           <button
             key={q}
             onClick={() => onQuestion(q)}
-            className="text-left rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+            className="text-left rounded-lg border border-border px-3 py-2 text-xs text-text hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
           >
             {q}
           </button>
@@ -189,8 +189,8 @@ function Notice({
   type: "error" | "info" | "warning";
 }) {
   const cls = {
-    error: "bg-red-50 border-red-200 text-red-700",
-    info: "bg-blue-50 border-blue-200 text-blue-700",
+    error: "bg-status-threat/10 border-status-threat/20 text-status-threat",
+    info: "bg-primary-blue/10 border-primary-blue/20 text-primary-cyan",
     warning: "bg-amber-50 border-amber-200 text-amber-800",
   }[type];
   return (
@@ -282,13 +282,13 @@ export default function ChatPanel({
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden h-[520px]">
+    <div className="flex flex-col rounded-xl border border-border bg-background-elevated shadow-[0_4px_12px_rgba(0,0,0,0.1)] overflow-hidden h-[520px]">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="text-lg">🛡</span>
         <div>
-          <p className="text-sm font-semibold text-gray-900">APK Security Assistant</p>
-          <p className="text-xs text-gray-500">Answers grounded in analysis evidence only</p>
+          <p className="text-sm font-semibold text-text-bright">APK Security Assistant</p>
+          <p className="text-xs text-text-muted">Answers grounded in analysis evidence only</p>
         </div>
         {isPartialAnalysis && (
           <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
@@ -330,7 +330,7 @@ export default function ChatPanel({
       {/* Input area */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t border-gray-100 px-3 py-2.5"
+        className="flex items-center gap-2 border-t border-border px-3 py-2.5"
       >
         <input
           id="chat-input"
@@ -345,14 +345,14 @@ export default function ChatPanel({
           placeholder="Ask about this APK…"
           aria-label="Chat message input"
           disabled={chat.isPending}
-          className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50"
+          className="flex-1 rounded-lg border border-border px-3 py-2 text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50"
         />
         <button
           type="submit"
           id="chat-send-btn"
           disabled={chat.isPending || !input.trim()}
           aria-label="Send message"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-blue text-white hover:bg-primary-blue/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <SendIcon />
         </button>

@@ -18,8 +18,8 @@ const SOURCE_LABELS: Record<string, string> = {
 
 // ── Stage badge colours ─────────────────────────────────────────────────────
 const STAGE_STYLES: Record<string, string> = {
-  fetcher:       "bg-orange-100 text-orange-700 border-orange-200",
-  normalizer:    "bg-blue-100 text-blue-700 border-blue-200",
+  fetcher:       "bg-orange-100 text-orange-700 border-status-warning/20",
+  normalizer:    "bg-blue-100 text-primary-cyan border-primary-blue/20",
   deduplicator:  "bg-purple-100 text-purple-700 border-purple-200",
 };
 
@@ -40,7 +40,7 @@ function formatTs(iso: string): string {
 // ── Single event row ────────────────────────────────────────────────────────
 function FallbackRow({ event }: { event: FallbackEvent }) {
   const sourceLabel = SOURCE_LABELS[event.source] ?? event.source;
-  const stageStyle  = STAGE_STYLES[event.stage]   ?? "bg-gray-100 text-gray-600 border-gray-200";
+  const stageStyle  = STAGE_STYLES[event.stage]   ?? "bg-background-surface text-text-muted border-border";
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -53,21 +53,21 @@ function FallbackRow({ event }: { event: FallbackEvent }) {
         <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${stageStyle}`}>
           {event.stage}
         </span>
-        <span className="ml-auto text-xs text-gray-400 whitespace-nowrap">
+        <span className="ml-auto text-xs text-text-muted/50 whitespace-nowrap">
           {formatTs(event.ts)}
         </span>
       </div>
 
       {/* Original → Fallback */}
       <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-xs">
-        <span className="text-gray-500 font-medium pt-0.5">Intended:</span>
-        <span className="text-gray-700 line-through decoration-red-400">{event.original}</span>
+        <span className="text-text-muted font-medium pt-0.5">Intended:</span>
+        <span className="text-text line-through decoration-red-400">{event.original}</span>
 
-        <span className="text-gray-500 font-medium pt-0.5">Used instead:</span>
-        <span className="text-green-700 font-medium">{event.fallback}</span>
+        <span className="text-text-muted font-medium pt-0.5">Used instead:</span>
+        <span className="text-status-success font-medium">{event.fallback}</span>
 
-        <span className="text-gray-500 font-medium pt-0.5">Reason:</span>
-        <span className="text-gray-600 break-words">{event.reason}</span>
+        <span className="text-text-muted font-medium pt-0.5">Reason:</span>
+        <span className="text-text-muted break-words">{event.reason}</span>
       </div>
     </div>
   );
@@ -78,11 +78,11 @@ export default function TIPipelinePanel() {
   const { data: events = [], isLoading, isError } = usePipelineFallbacks();
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
+    <section className="rounded-xl border border-border bg-background-elevated p-4">
       {/* Panel header */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-700">
+          <h2 className="text-sm font-semibold text-text">
             TI Pipeline — Fallback Events
           </h2>
           {events.length > 0 && (
@@ -91,17 +91,17 @@ export default function TIPipelinePanel() {
             </span>
           )}
         </div>
-        <span className="text-xs text-gray-400">Refreshes every 60s</span>
+        <span className="text-xs text-text-muted/50">Refreshes every 60s</span>
       </div>
 
       {/* Loading state */}
       {isLoading && (
-        <p className="text-xs text-gray-400 py-4 text-center">Loading pipeline events…</p>
+        <p className="text-xs text-text-muted/50 py-4 text-center">Loading pipeline events…</p>
       )}
 
       {/* Error state */}
       {isError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="rounded-lg border border-status-threat/20 bg-status-threat/10 px-3 py-2 text-xs text-status-threat">
           Could not load pipeline events. Check that the backend is reachable.
         </div>
       )}
@@ -110,8 +110,8 @@ export default function TIPipelinePanel() {
       {!isLoading && !isError && events.length === 0 && (
         <div className="flex flex-col items-center gap-1 py-6 text-center">
           <span className="text-2xl">✅</span>
-          <p className="text-sm font-medium text-gray-600">All sources running normally</p>
-          <p className="text-xs text-gray-400">No fallbacks or skipped sources in the last 100 runs</p>
+          <p className="text-sm font-medium text-text-muted">All sources running normally</p>
+          <p className="text-xs text-text-muted/50">No fallbacks or skipped sources in the last 100 runs</p>
         </div>
       )}
 
@@ -126,9 +126,9 @@ export default function TIPipelinePanel() {
 
       {/* Legend */}
       {events.length > 0 && (
-        <p className="mt-3 text-xs text-gray-400 border-t border-gray-100 pt-2">
+        <p className="mt-3 text-xs text-text-muted/50 border-t border-border pt-2">
           Showing newest {events.length} fallback event{events.length !== 1 ? "s" : ""}. 
-          Events are auto-cleared after 100 entries. Resolve missing credentials in <code className="bg-gray-100 px-1 rounded">.env</code>.
+          Events are auto-cleared after 100 entries. Resolve missing credentials in <code className="bg-background-surface px-1 rounded">.env</code>.
         </p>
       )}
     </section>

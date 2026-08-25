@@ -9,7 +9,7 @@ const DOWN = "#2a9e65"; // decreases risk
 export default function RiskHeatmap({ shap }: { shap: ShapFeature[] }) {
   if (!shap || shap.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-400">
+      <div className="rounded-xl border border-border bg-background-elevated p-4 text-sm text-text-muted/50">
         No feature contributions available yet.
       </div>
     );
@@ -22,8 +22,8 @@ export default function RiskHeatmap({ shap }: { shap: ShapFeature[] }) {
   const height = Math.max(160, data.length * 34);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-700">
+    <div className="rounded-xl border border-border bg-background-elevated p-4">
+      <h2 className="mb-2 text-sm font-semibold text-text">
         Top risk drivers (SHAP)
       </h2>
       <div style={{ width: "100%", height }}>
@@ -53,7 +53,7 @@ export default function RiskHeatmap({ shap }: { shap: ShapFeature[] }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-1 flex gap-4 text-xs text-gray-500">
+      <div className="mt-1 flex gap-4 text-xs text-text-muted">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2 w-2 rounded" style={{ background: UP }} /> increases risk
         </span>

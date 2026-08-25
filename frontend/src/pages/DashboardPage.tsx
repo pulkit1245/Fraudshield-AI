@@ -37,11 +37,11 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-900">Analyst dashboard</h1>
+        <h1 className="text-lg font-bold text-text-bright">Analyst dashboard</h1>
         <div className="flex items-center gap-3">
-          {upload.isPending && <span className="text-xs text-gray-500">Uploading…</span>}
+          {upload.isPending && <span className="text-xs text-text-muted">Uploading…</span>}
           {upload.isError && (
-            <span className="max-w-xs truncate rounded bg-red-50 px-2 py-1 text-xs text-red-700 border border-red-200">
+            <span className="max-w-xs truncate rounded bg-status-threat/10 px-2 py-1 text-xs text-status-threat border border-status-threat/20">
               ⚠ Upload failed: {(upload.error as Error)?.message ?? "Unknown error"}
             </span>
           )}
@@ -51,7 +51,7 @@ export default function DashboardPage() {
           />
           <label
             htmlFor="apk-upload"
-            className="cursor-pointer rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="cursor-pointer rounded-md bg-primary-blue px-3 py-2 text-sm font-semibold text-white hover:bg-primary-blue/80"
           >
             Upload APK
           </label>
@@ -59,7 +59,7 @@ export default function DashboardPage() {
       </div>
 
       {stats.isError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-lg border border-status-threat/20 bg-status-threat/10 px-4 py-3 text-sm text-status-threat">
           <strong>Stats error:</strong> {(stats.error as Error)?.message ?? "Failed to load dashboard stats"}
         </div>
       )}
@@ -74,7 +74,7 @@ export default function DashboardPage() {
       {user?.role === "admin" && <TIPipelinePanel />}
 
       {list.isError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-lg border border-status-threat/20 bg-status-threat/10 px-4 py-3 text-sm text-status-threat">
           <strong>Queue error:</strong> {(list.error as Error)?.message ?? "Failed to load submission queue"}
         </div>
       )}

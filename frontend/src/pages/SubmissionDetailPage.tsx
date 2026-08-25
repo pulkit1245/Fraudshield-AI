@@ -10,7 +10,7 @@ import CausalChainSankey, {
 } from "../components/SankeyDiagram/CausalChainSankey";
 import RiskHeatmap from "../components/RiskHeatmap/RiskHeatmap";
 import ChatPanel from "../components/ChatPanel/ChatPanel";
-import AnalysisTimeline from "../components/AnalysisTimeline/AnalysisTimeline";
+import LiveAnalysisConsole from "../components/LiveConsole/LiveAnalysisConsole";
 import AnalysisCompletenessCard, {
   deriveAnalysisCompleteness,
 } from "../components/AnalysisCompleteness/AnalysisCompletenessCard";
@@ -93,9 +93,9 @@ function SectionErrorBoundary({
 // ── Section error fallback ────────────────────────────────────────────────
 function SectionError({ title, message }: { title: string; message: string }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
-      <p className="font-semibold text-red-800">{title} unavailable</p>
-      <p className="text-red-700 text-xs mt-0.5">{message}</p>
+    <div className="rounded-lg border border-status-threat/20 bg-status-threat/10 px-4 py-3 text-sm">
+      <p className="font-semibold text-status-threat">{title} unavailable</p>
+      <p className="text-status-threat text-xs mt-0.5">{message}</p>
     </div>
   );
 }
@@ -104,16 +104,16 @@ function SectionError({ title, message }: { title: string; message: string }) {
 function APKHeaderCard({ detail, submitted }: { detail: SubmissionDetail; submitted: string }) {
   const sf = detail.static_finding as any;
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 break-all leading-tight">
+          <h1 className="text-xl font-bold text-text-bright break-all leading-tight">
             {detail.original_filename}
           </h1>
           {sf?.package_name && (
-            <p className="mt-0.5 font-mono text-xs text-gray-500">{sf.package_name}</p>
+            <p className="mt-0.5 font-mono text-xs text-text-muted">{sf.package_name}</p>
           )}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
             <span>
               SHA-256:{" "}
               <span className="font-mono" title={detail.sha256_hash}>
@@ -138,8 +138,8 @@ function PipelineStatusRow({
   stages: Array<{ name: string; done: boolean; failed: boolean }>;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-sm">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <div className="rounded-xl border border-border bg-background-elevated px-5 py-3 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
         Analysis Pipeline
       </h2>
       <div className="flex flex-wrap gap-2">
@@ -148,10 +148,10 @@ function PipelineStatusRow({
             key={s.name}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
               s.failed
-                ? "bg-red-100 text-red-800"
+                ? "bg-red-100 text-status-threat"
                 : s.done
-                ? "bg-green-100 text-green-800"
-                : "bg-gray-100 text-gray-500"
+                ? "bg-green-100 text-status-success"
+                : "bg-background-surface text-text-muted"
             }`}
           >
             {s.failed ? "✗" : s.done ? "✓" : "○"} {s.name}
@@ -263,23 +263,23 @@ export default function SubmissionDetailPage() {
   if (detail.isLoading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-24 rounded-xl bg-gray-100" />
-        <div className="h-12 rounded-xl bg-gray-100" />
-        <div className="h-48 rounded-xl bg-gray-100" />
+        <div className="h-24 rounded-xl bg-background-surface" />
+        <div className="h-12 rounded-xl bg-background-surface" />
+        <div className="h-48 rounded-xl bg-background-surface" />
       </div>
     );
   }
 
   if (detail.isError) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+      <div className="rounded-xl border border-status-threat/20 bg-status-threat/10 p-6 text-sm text-status-threat">
         <p className="font-semibold">Failed to load submission</p>
-        <p className="mt-1 text-red-700">
+        <p className="mt-1 text-status-threat">
           {(detail.error as Error)?.message ?? "Unknown error"}
         </p>
         <button
           onClick={() => navigate("/")}
-          className="mt-3 text-indigo-600 hover:underline text-xs"
+          className="mt-3 text-primary-cyan hover:underline text-xs"
         >
           ← Return to dashboard
         </button>
@@ -289,11 +289,11 @@ export default function SubmissionDetailPage() {
 
   if (!detail.data) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
-        <p className="font-semibold text-gray-700">Submission not found</p>
+      <div className="rounded-xl border border-border bg-background-elevated p-6 text-center text-sm text-text-muted">
+        <p className="font-semibold text-text">Submission not found</p>
         <button
           onClick={() => navigate("/")}
-          className="mt-3 text-indigo-600 hover:underline text-xs"
+          className="mt-3 text-primary-cyan hover:underline text-xs"
         >
           ← Return to dashboard
         </button>
@@ -308,7 +308,7 @@ export default function SubmissionDetailPage() {
       {/* Back navigation */}
       <button
         onClick={() => navigate("/")}
-        className="no-print flex items-center gap-1 text-sm text-indigo-600 hover:underline"
+        className="no-print flex items-center gap-1 text-sm text-primary-cyan hover:underline"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -321,7 +321,7 @@ export default function SubmissionDetailPage() {
 
       {/* ── Analysis Pipeline (Live console) ───────────────────────────── */}
       <SectionErrorBoundary title="Timeline">
-        {status.data && <AnalysisTimeline statusData={status.data} />}
+        {status.data && <LiveAnalysisConsole statusData={status.data} detail={d} virustotal={vt.data} mlScore={ml.data} report={report.data} />}
       </SectionErrorBoundary>
 
       {/* Completeness card (partial/failed warnings) */}
@@ -369,7 +369,7 @@ export default function SubmissionDetailPage() {
       {/* ── Causal Behaviour Chain ─────────────────────────────────────── */}
       <SectionErrorBoundary title="Causal Chain">
         <div>
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">Causal Behaviour Chain</h2>
+          <h2 className="mb-2 text-sm font-semibold text-text">Causal Behaviour Chain</h2>
           <CausalChainSankey stages={stages} band={d.verdict?.severity_band} />
         </div>
       </SectionErrorBoundary>
@@ -412,7 +412,7 @@ export default function SubmissionDetailPage() {
           <button
             id="btn-override-verdict"
             onClick={onOverride}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text hover:bg-background-surface transition-colors"
           >
             Override verdict
           </button>

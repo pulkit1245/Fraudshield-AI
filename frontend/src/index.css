@@ -3,14 +3,74 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #f5f4f0;
-  color: #1a1a1a;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #05070B;
+  color: #CBD5E1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reusable global scrollbar styling for premium look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+@layer components {
+  /* Reusable Card */
+  .premium-card {
+    @apply bg-background-elevated border border-border rounded-xl shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300;
+  }
+  
+  .premium-card:hover {
+    @apply shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)] border-primary-cyan/20;
+  }
+
+  /* Reusable Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide uppercase;
+  }
+  
+  .badge-primary {
+    @apply bg-primary-blue/10 text-primary-cyan border border-primary-blue/20;
+  }
+
+  .badge-ai {
+    @apply bg-ai/10 text-ai-light border border-ai/20;
+  }
+
+  /* Data Visualization Container */
+  .data-container {
+    @apply bg-background-surface/50 border border-border/50 rounded-lg p-4 backdrop-blur-sm relative;
+  }
+  
+  /* Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  /* Progress Indicators */
+  .progress-bar {
+    @apply w-full bg-background-surface rounded-full overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full bg-primary-blue rounded-full transition-all duration-500 ease-spring;
+  }
 }
 
 /* Print: hide chrome, show only the report for one-click PDF export. */

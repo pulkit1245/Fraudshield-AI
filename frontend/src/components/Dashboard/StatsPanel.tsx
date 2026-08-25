@@ -8,9 +8,9 @@ const BANDS: SeverityBand[] = ["low", "medium", "high", "critical"];
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <div className="text-2xl font-extrabold text-gray-900">{value}</div>
-      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+    <div className="rounded-xl border border-border bg-background-elevated px-4 py-3">
+      <div className="text-2xl font-extrabold text-text-bright">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
     </div>
   );
 }
@@ -20,8 +20,8 @@ export default function StatsPanel({ stats }: { stats: DashboardStats }) {
 
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-2 text-sm font-semibold text-gray-700">Severity distribution</h2>
+      <div className="md:col-span-2 rounded-xl border border-border bg-background-elevated p-4">
+        <h2 className="mb-2 text-sm font-semibold text-text">Severity distribution</h2>
         <div style={{ width: "100%", height: 180 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>

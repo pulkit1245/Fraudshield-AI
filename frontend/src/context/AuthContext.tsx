@@ -76,7 +76,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
   if (loading) {
-    return <div className="p-8 text-sm text-gray-500">Loading…</div>;
+    return <div className="p-8 text-sm text-text-muted">Loading…</div>;
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;

@@ -50,9 +50,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-extrabold text-gray-900">FraudShield AI</h1>
-        <p className="mb-6 text-sm text-gray-500">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-background-elevated p-8 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+        <h1 className="text-xl font-extrabold text-text-bright">FraudShield AI</h1>
+        <p className="mb-6 text-sm text-text-muted">
           {mode === "login" ? "Sign in to the analyst console" : "Create an analyst account"}
         </p>
 
@@ -60,26 +60,26 @@ export default function LoginPage() {
           <input
             type="email" required placeholder="Email" value={email}
             onChange={(e) => setEmail(e.target.value)} aria-label="Email"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
           <input
             type="password" required placeholder="Password (min 8 chars)" value={password}
             onChange={(e) => setPassword(e.target.value)} aria-label="Password" minLength={8}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
           {mode === "register" && (
             <input
               type="text" required placeholder="Organization (bank / NBFC)" value={orgName}
               onChange={(e) => setOrgName(e.target.value)} aria-label="Organization"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border px-3 py-2 text-sm"
             />
           )}
 
-          {error && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-md bg-status-threat/10 px-3 py-2 text-sm text-status-threat">{error}</div>}
 
           <button
             type="submit" disabled={busy}
-            className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="w-full rounded-md bg-primary-blue px-3 py-2 text-sm font-semibold text-white hover:bg-primary-blue/80 disabled:opacity-50"
           >
             {busy ? "Signing in…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
@@ -87,7 +87,7 @@ export default function LoginPage() {
 
         <button
           onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
-          className="mt-4 text-xs text-indigo-600 hover:underline"
+          className="mt-4 text-xs text-primary-cyan hover:underline"
         >
           {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}
         </button>

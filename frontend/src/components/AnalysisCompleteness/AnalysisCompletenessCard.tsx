@@ -123,7 +123,7 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
     <div className="space-y-6">
       {/* Overview Card */}
       {state === "PARTIALLY_COMPLETED" && (
-        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-5 shadow-sm">
+        <div className="rounded-xl border border-yellow-300 bg-status-warning/10 p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
           <div className="mb-2 flex items-center gap-2">
             <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -132,17 +132,17 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
               Analysis Partially Complete
             </h2>
           </div>
-          <p className="mb-4 text-sm font-medium text-yellow-800">
+          <p className="mb-4 text-sm font-medium text-status-warning">
             {completedCount} of {totalCount} analysis stages completed
           </p>
-          <p className="text-sm text-yellow-800">
+          <p className="text-sm text-status-warning">
             The final assessment is based on the analysis signals that were successfully collected.
           </p>
         </div>
       )}
 
       {state === "FAILED" && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-5 shadow-sm">
+        <div className="rounded-xl border border-red-300 bg-status-threat/10 p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
           <div className="mb-2 flex items-center gap-2">
             <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -151,17 +151,17 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
               Analysis Failed
             </h2>
           </div>
-          <p className="mb-4 text-sm font-medium text-red-800">
+          <p className="mb-4 text-sm font-medium text-status-threat">
             {completedCount} of {totalCount} analysis stages completed
           </p>
-          <p className="text-sm text-red-800">
+          <p className="text-sm text-status-threat">
             A critical stage failed, preventing a full assessment. Risk verdict is unavailable.
           </p>
         </div>
       )}
 
       {state === "COMPLETED_UNVERIFIED" && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
           <div className="mb-2 flex items-center gap-2">
             <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -182,7 +182,7 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
       )}
 
       {state === "COMPLETED" && (
-        <div className="rounded-xl border border-green-300 bg-green-50 p-5 shadow-sm">
+        <div className="rounded-xl border border-green-300 bg-status-success/10 p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
           <div className="mb-2 flex items-center gap-2">
             <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -191,7 +191,7 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
               Analysis Complete
             </h2>
           </div>
-          <p className="text-sm text-green-800">
+          <p className="text-sm text-status-success">
             All required security analysis stages completed successfully.
           </p>
         </div>
@@ -201,62 +201,62 @@ export default function AnalysisCompletenessCard({ statusData, dynamicFinding }:
           evidence was not produced by a live run, so the reason is visible even
           when a stage failure already downgraded the banner above. */}
       {provenance?.degraded && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+        <div className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-text">
             Sandbox Provenance
           </h3>
           <div className="mb-2 grid grid-cols-[140px_1fr] items-baseline gap-2 text-sm">
-            <span className="font-semibold text-gray-700">Execution:</span>
-            <span className="text-gray-900">{provenance.label}</span>
+            <span className="font-semibold text-text">Execution:</span>
+            <span className="text-text-bright">{provenance.label}</span>
           </div>
           <div className="mb-2 grid grid-cols-[140px_1fr] items-baseline gap-2 text-sm">
-            <span className="font-semibold text-gray-700">Containment:</span>
-            <span className="text-gray-900">{provenance.containmentLabel}</span>
+            <span className="font-semibold text-text">Containment:</span>
+            <span className="text-text-bright">{provenance.containmentLabel}</span>
           </div>
           <div className="grid grid-cols-[140px_1fr] items-baseline gap-2 text-sm">
-            <span className="font-semibold text-gray-700">Impact:</span>
-            <span className="text-gray-800">{provenance.summary}</span>
+            <span className="font-semibold text-text">Impact:</span>
+            <span className="text-text-bright">{provenance.summary}</span>
           </div>
         </div>
       )}
 
       {/* Analysis Issues Section */}
       {issues.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-700">
+        <div className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-text">
             Analysis Issues
           </h3>
           <div className="space-y-4">
             {issues.map((issue) => (
-              <div key={issue.stage} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <div key={issue.stage} className="rounded-lg border border-border bg-background-surface p-4">
                 <div className="mb-2 flex items-center gap-2">
                   {issue.status === "failed" ? (
                     <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                   ) : (
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="h-5 w-5 text-text-muted/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                     </svg>
                   )}
-                  <span className="font-semibold text-gray-900">{issue.stage}</span>
+                  <span className="font-semibold text-text-bright">{issue.stage}</span>
                 </div>
                 
                 <div className="mb-2 grid grid-cols-[80px_1fr] items-baseline gap-2 text-sm">
-                  <span className="font-semibold text-gray-700">Status:</span>
-                  <span className="capitalize text-gray-900">{issue.status}</span>
+                  <span className="font-semibold text-text">Status:</span>
+                  <span className="capitalize text-text-bright">{issue.status}</span>
                 </div>
                 
                 <div className="mb-2 grid grid-cols-[80px_1fr] items-baseline gap-2 text-sm">
-                  <span className="font-semibold text-gray-700">Reason:</span>
-                  <span className="text-gray-800">
+                  <span className="font-semibold text-text">Reason:</span>
+                  <span className="text-text-bright">
                     {issue.error_message || "Additional details are unavailable."}
                   </span>
                 </div>
                 
                 <div className="grid grid-cols-[80px_1fr] items-baseline gap-2 text-sm">
-                  <span className="font-semibold text-gray-700">Impact:</span>
-                  <span className="text-gray-800">
+                  <span className="font-semibold text-text">Impact:</span>
+                  <span className="text-text-bright">
                     {issue.status === "skipped"
                       ? "This analysis phase was intentionally bypassed and not included in this assessment."
                       : "Results from this stage could not be evaluated."}

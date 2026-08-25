@@ -9,10 +9,10 @@ export const BAND_COLOR: Record<SeverityBand, string> = {
 };
 
 export const BAND_BADGE: Record<SeverityBand, string> = {
-  low: "bg-green-100 text-green-800",
+  low: "bg-green-100 text-status-success",
   medium: "bg-amber-100 text-amber-800",
-  high: "bg-orange-100 text-orange-800",
-  critical: "bg-red-100 text-red-800",
+  high: "bg-orange-100 text-status-warning",
+  critical: "bg-red-100 text-status-threat",
 };
 
 export const STATUS_LABEL: Record<SubmissionStatus, string> = {

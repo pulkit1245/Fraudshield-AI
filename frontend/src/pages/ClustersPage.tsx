@@ -26,12 +26,12 @@ export default function ClustersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-900">Campaign clusters</h1>
+        <h1 className="text-lg font-bold text-text-bright">Campaign clusters</h1>
         {user?.role === "admin" && (
           <button
             onClick={() => recompute.mutate()}
             disabled={recompute.isPending}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-background-surface disabled:opacity-50"
           >
             {recompute.isPending ? "Recomputing…" : "Recompute centroids"}
           </button>
@@ -45,17 +45,17 @@ export default function ClustersPage() {
       />
 
       {detail.data && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+        <div className="rounded-xl border border-border bg-background-elevated p-4">
+          <h2 className="mb-2 text-sm font-semibold text-text">
             {detail.data.cluster_name} · {detail.data.member_count} members
           </h2>
           <ul className="divide-y divide-gray-100 text-sm">
             {detail.data.members.map((sid) => (
               <li key={sid} className="flex items-center justify-between py-2">
-                <span className="font-mono text-xs text-gray-600">{shortHash(sid, 18)}</span>
+                <span className="font-mono text-xs text-text-muted">{shortHash(sid, 18)}</span>
                 <button
                   onClick={() => navigate(`/submissions/${sid}`)}
-                  className="text-xs text-indigo-600 hover:underline"
+                  className="text-xs text-primary-cyan hover:underline"
                 >
                   Open report →
                 </button>

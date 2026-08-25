@@ -198,12 +198,12 @@ function FindingDetailDrawer({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-xl bg-white shadow-xl p-6 mx-4"
+        className="relative w-full max-w-lg rounded-xl bg-background-elevated shadow-xl p-6 mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"
+          className="absolute right-4 top-4 text-text-muted/50 hover:text-text"
           aria-label="Close"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -214,30 +214,30 @@ function FindingDetailDrawer({
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <span aria-hidden>{SEVERITY_ICONS[finding.severity]}</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
               {finding.severity} · {CATEGORY_LABELS[finding.category] ?? finding.category}
             </span>
           </div>
-          <h2 className="text-base font-bold text-gray-900">{finding.title}</h2>
+          <h2 className="text-base font-bold text-text-bright">{finding.title}</h2>
         </div>
 
         <dl className="space-y-3 text-sm">
           <div>
-            <dt className="font-semibold text-gray-700">Observed Evidence</dt>
-            <dd className="mt-0.5 text-gray-800 bg-gray-50 rounded p-2 text-xs font-mono whitespace-pre-wrap">
+            <dt className="font-semibold text-text">Observed Evidence</dt>
+            <dd className="mt-0.5 text-text-bright bg-background-surface rounded p-2 text-xs font-mono whitespace-pre-wrap">
               {finding.evidence}
             </dd>
           </div>
 
           {finding.whyItMatters && (
             <div>
-              <dt className="font-semibold text-gray-700">Why It Matters</dt>
-              <dd className="mt-0.5 text-gray-700">{finding.whyItMatters}</dd>
+              <dt className="font-semibold text-text">Why It Matters</dt>
+              <dd className="mt-0.5 text-text">{finding.whyItMatters}</dd>
             </div>
           )}
 
           <div>
-            <dt className="font-semibold text-gray-700">Analysis Source</dt>
+            <dt className="font-semibold text-text">Analysis Source</dt>
             <dd className="mt-0.5">
               <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs text-indigo-700">
                 {finding.source}
@@ -247,8 +247,8 @@ function FindingDetailDrawer({
 
           {finding.relatedTTP && (
             <div>
-              <dt className="font-semibold text-gray-700">Related MITRE ATT&CK</dt>
-              <dd className="mt-0.5 font-mono text-indigo-600 text-xs">{finding.relatedTTP}</dd>
+              <dt className="font-semibold text-text">Related MITRE ATT&CK</dt>
+              <dd className="mt-0.5 font-mono text-primary-cyan text-xs">{finding.relatedTTP}</dd>
             </div>
           )}
         </dl>
@@ -285,13 +285,13 @@ export function InvestigationSummary({
   ].filter(Boolean).length;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-base font-bold text-gray-900">Investigation Summary</h2>
+    <div className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+      <h2 className="mb-4 text-base font-bold text-text-bright">Investigation Summary</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {band && typeof score === "number" && (
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
-            <p className="text-2xl font-bold text-gray-900">{score}</p>
-            <p className="text-xs text-gray-500">Risk Score</p>
+          <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+            <p className="text-2xl font-bold text-text-bright">{score}</p>
+            <p className="text-xs text-text-muted">Risk Score</p>
             {band && (
               <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${BAND_BADGE[band]}`}>
                 {band.toUpperCase()}
@@ -299,25 +299,25 @@ export function InvestigationSummary({
             )}
           </div>
         )}
-        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
-          <p className="text-2xl font-bold text-gray-900">{highCount + criticalCount}</p>
-          <p className="text-xs text-gray-500">High / Critical</p>
-          <p className="text-xs text-gray-400">{mediumCount} medium</p>
+        <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+          <p className="text-2xl font-bold text-text-bright">{highCount + criticalCount}</p>
+          <p className="text-xs text-text-muted">High / Critical</p>
+          <p className="text-xs text-text-muted/50">{mediumCount} medium</p>
         </div>
-        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
-          <p className="text-2xl font-bold text-gray-900">{ttps.length}</p>
-          <p className="text-xs text-gray-500">TTP Techniques</p>
+        <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+          <p className="text-2xl font-bold text-text-bright">{ttps.length}</p>
+          <p className="text-xs text-text-muted">TTP Techniques</p>
         </div>
-        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
-          <p className="text-2xl font-bold text-gray-900">{dynamicFlags}</p>
-          <p className="text-xs text-gray-500">Runtime Flags</p>
-          <p className="text-xs text-gray-400">
+        <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+          <p className="text-2xl font-bold text-text-bright">{dynamicFlags}</p>
+          <p className="text-xs text-text-muted">Runtime Flags</p>
+          <p className="text-xs text-text-muted/50">
             {dynamicFlags === 0 ? "none" : "detected"}
           </p>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3 text-xs text-gray-600">
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3 text-xs text-text-muted">
         <div className="flex items-center gap-2">
           <span>Threat Intel:</span>
           <span className="font-medium">
@@ -339,10 +339,10 @@ export function InvestigationSummary({
         <div className="flex items-center gap-2">
           <span>Pipeline:</span>
           <span className={`font-medium ${
-            overallState === "COMPLETED" ? "text-green-700" :
+            overallState === "COMPLETED" ? "text-status-success" :
             overallState === "COMPLETED_UNVERIFIED" ? "text-amber-700" :
             overallState === "PARTIALLY_COMPLETED" ? "text-amber-700" :
-            overallState === "FAILED" ? "text-red-700" : "text-gray-600"
+            overallState === "FAILED" ? "text-status-threat" : "text-text-muted"
           }`}>
             {overallState === "COMPLETED" ? "✓ Complete" :
              overallState === "COMPLETED_UNVERIFIED" ? "⚠ Complete (runtime unverified)" :
@@ -390,9 +390,9 @@ export default function InvestigationPanel({
 
   if (allFindings.length === 0) {
     return (
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-base font-bold text-gray-900 mb-2">Investigation Findings</h2>
-        <p className="text-sm text-gray-500">No findings were recorded for this submission.</p>
+      <section className="rounded-xl border border-border bg-background-elevated p-5">
+        <h2 className="text-base font-bold text-text-bright mb-2">Investigation Findings</h2>
+        <p className="text-sm text-text-muted">No findings were recorded for this submission.</p>
       </section>
     );
   }
@@ -417,19 +417,19 @@ export default function InvestigationPanel({
 
   return (
     <>
-      <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-100 px-5 py-4">
+      <section className="rounded-xl border border-border bg-background-elevated shadow-[0_4px_12px_rgba(0,0,0,0.1)] overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-bold text-gray-900">
+            <h2 className="text-base font-bold text-text-bright">
               Investigation Findings
-              <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600">
+              <span className="ml-2 rounded-full bg-background-surface px-2 py-0.5 text-xs font-normal text-text-muted">
                 {filtered.length} of {allFindings.length}
               </span>
             </h2>
             {/* Search */}
             <div className="relative">
               <svg
-                className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400"
+                className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-text-muted/50"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -444,7 +444,7 @@ export default function InvestigationPanel({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search findings…"
                 aria-label="Search findings"
-                className="rounded-lg border border-gray-200 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300 w-48"
+                className="rounded-lg border border-border pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300 w-48"
               />
             </div>
           </div>
@@ -458,8 +458,8 @@ export default function InvestigationPanel({
                 onClick={() => setSeverityFilter(btn.key)}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   severityFilter === btn.key
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-primary-blue text-white"
+                    : "bg-background-surface text-text hover:bg-gray-200"
                 }`}
               >
                 {btn.label}
@@ -477,7 +477,7 @@ export default function InvestigationPanel({
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   categoryFilter === btn.key
                     ? "bg-gray-700 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-background-surface text-text hover:bg-gray-200"
                 }`}
               >
                 {btn.label}
@@ -489,7 +489,7 @@ export default function InvestigationPanel({
         {/* Results */}
         <div>
           {filtered.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-500">
+            <div className="px-5 py-8 text-center text-sm text-text-muted">
               No findings match the current filters.
             </div>
           ) : (
@@ -499,7 +499,7 @@ export default function InvestigationPanel({
                   key={f.id}
                   id={`finding-${f.id}`}
                   onClick={() => setSelectedFinding(f)}
-                  className="w-full text-left px-5 py-3 hover:bg-gray-50 transition-colors group"
+                  className="w-full text-left px-5 py-3 hover:bg-background-surface transition-colors group"
                 >
                   <div className="flex items-start gap-3">
                     <span aria-label={f.severity} className="mt-0.5 text-base">
@@ -507,18 +507,18 @@ export default function InvestigationPanel({
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">{f.title}</p>
-                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+                        <p className="text-sm font-medium text-text-bright">{f.title}</p>
+                        <span className="rounded bg-background-surface px-1.5 py-0.5 text-xs text-text-muted">
                           {CATEGORY_LABELS[f.category]}
                         </span>
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600">
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-primary-cyan">
                           {f.source}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-gray-500 truncate">{f.evidence}</p>
+                      <p className="mt-0.5 text-xs text-text-muted truncate">{f.evidence}</p>
                     </div>
                     <svg
-                      className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors"
+                      className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-text-muted transition-colors"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -535,14 +535,14 @@ export default function InvestigationPanel({
 
         {/* Stage audit trail */}
         {stages && stages.length > 0 && (
-          <div className="border-t border-gray-100 px-5 py-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <div className="border-t border-border px-5 py-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Analysis Audit Trail
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-gray-500">
+                  <tr className="text-text-muted">
                     <th className="text-left pb-2 pr-4">Stage</th>
                     <th className="text-left pb-2 pr-4">Status</th>
                     <th className="text-left pb-2 pr-4 hidden md:table-cell">Started</th>
@@ -552,9 +552,9 @@ export default function InvestigationPanel({
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {stages.map((s) => (
-                    <tr key={s.stage} className="text-gray-700">
+                    <tr key={s.stage} className="text-text">
                       <td
-                        className="py-1.5 pr-4 font-medium text-indigo-600 cursor-pointer hover:underline"
+                        className="py-1.5 pr-4 font-medium text-primary-cyan cursor-pointer hover:underline"
                         onClick={() => {
                           const map: Record<string, string> = {
                             "Static Analysis": "section-static",
@@ -575,28 +575,28 @@ export default function InvestigationPanel({
                         <span
                           className={`rounded-full px-2 py-0.5 font-medium ${
                             s.status === "completed"
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-green-100 text-status-success"
                               : s.status === "failed"
-                              ? "bg-red-100 text-red-800"
+                              ? "bg-red-100 text-status-threat"
                               : s.status === "skipped"
-                              ? "bg-gray-100 text-gray-600"
-                              : "bg-blue-100 text-blue-700"
+                              ? "bg-background-surface text-text-muted"
+                              : "bg-blue-100 text-primary-cyan"
                           }`}
                         >
                           {s.status}
                         </span>
                       </td>
-                      <td className="py-1.5 pr-4 hidden md:table-cell text-gray-500">
+                      <td className="py-1.5 pr-4 hidden md:table-cell text-text-muted">
                         {s.started_at
                           ? new Date(s.started_at).toLocaleTimeString()
                           : "—"}
                       </td>
-                      <td className="py-1.5 hidden md:table-cell text-gray-500">
+                      <td className="py-1.5 hidden md:table-cell text-text-muted">
                         {s.completed_at
                           ? new Date(s.completed_at).toLocaleTimeString()
                           : "—"}
                       </td>
-                      <td className="py-1.5 text-gray-500">
+                      <td className="py-1.5 text-text-muted">
                         {s.error_message ? (
                           <span className="text-red-600 truncate max-w-xs block" title={s.error_message}>
                             {s.error_message.length > 40

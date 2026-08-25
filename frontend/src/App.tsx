@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
-import Navbar from "./components/Navbar/Navbar";
+import Sidebar from "./components/Layout/Sidebar";
+import TopNav from "./components/Layout/TopNav";
 import { RequireAuth } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -8,11 +9,16 @@ import ClustersPage from "./pages/ClustersPage";
 
 function Layout() {
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <main className="mx-auto max-w-6xl px-6 py-6">
-        <Outlet />
-      </main>
+    <div className="flex h-screen w-full overflow-hidden bg-background text-text selection:bg-primary-blue/30 selection:text-text-bright">
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden relative">
+        <TopNav />
+        <main className="flex-1 overflow-y-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-background-surface via-background to-background p-6">
+          <div className="mx-auto max-w-7xl animate-in fade-in duration-500">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

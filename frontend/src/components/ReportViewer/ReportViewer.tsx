@@ -112,19 +112,19 @@ function AccordionSection({
   return (
     <section
       id={id}
-      className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+      className="rounded-xl border border-border bg-background-elevated shadow-[0_4px_12px_rgba(0,0,0,0.1)] overflow-hidden"
     >
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-background-surface transition-colors"
         aria-expanded={open}
       >
         <div className="flex items-center gap-3">
-          <span className="text-base font-semibold text-gray-900">{title}</span>
+          <span className="text-base font-semibold text-text-bright">{title}</span>
           {badge}
         </div>
         <svg
-          className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 text-text-muted/50 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -133,7 +133,7 @@ function AccordionSection({
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && <div className="border-t border-gray-100 px-5 py-4">{children}</div>}
+      {open && <div className="border-t border-border px-5 py-4">{children}</div>}
     </section>
   );
 }
@@ -186,10 +186,10 @@ function StatusPill({
   color: "green" | "yellow" | "red" | "gray";
 }) {
   const cls = {
-    green: "bg-green-100 text-green-800 border-green-200",
+    green: "bg-green-100 text-status-success border-status-success/20",
     yellow: "bg-amber-100 text-amber-800 border-amber-200",
-    red: "bg-red-100 text-red-800 border-red-200",
-    gray: "bg-gray-100 text-gray-700 border-gray-200",
+    red: "bg-red-100 text-status-threat border-status-threat/20",
+    gray: "bg-background-surface text-text border-border",
   }[color];
   return (
     <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${cls}`}>
@@ -238,16 +238,16 @@ function SecuritySummarySection({
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold text-gray-900 break-all">{detail.original_filename}</h1>
+          <h1 className="text-lg font-bold text-text-bright break-all">{detail.original_filename}</h1>
           {(detail.static_finding as any)?.package_name && (
-            <p className="mt-0.5 text-xs text-gray-500 font-mono">
+            <p className="mt-0.5 text-xs text-text-muted font-mono">
               {(detail.static_finding as any).package_name}
             </p>
           )}
-          <p className="mt-1 font-mono text-xs text-gray-400 break-all">{detail.sha256_hash}</p>
+          <p className="mt-1 font-mono text-xs text-text-muted/50 break-all">{detail.sha256_hash}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
           {band && <SeverityBadge band={band} />}
@@ -266,12 +266,12 @@ function SecuritySummarySection({
       </div>
 
       {band && typeof score === "number" && (
-        <div className="mt-4 flex items-center gap-6 border-t border-gray-100 pt-4">
+        <div className="mt-4 flex items-center gap-6 border-t border-border pt-4">
           <RiskGauge score={score} band={band} />
           <div>
-            <p className="text-sm leading-relaxed text-gray-700">{summaryLines.join(" ")}</p>
+            <p className="text-sm leading-relaxed text-text">{summaryLines.join(" ")}</p>
             {verdict?.analyst_override_score != null && (
-              <p className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+              <p className="mt-2 text-xs text-text-muted flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
@@ -283,7 +283,7 @@ function SecuritySummarySection({
       )}
 
       {!band && overallState !== "FAILED" && (
-        <p className="mt-3 text-sm text-gray-600 leading-relaxed">{summaryLines[0]}</p>
+        <p className="mt-3 text-sm text-text-muted leading-relaxed">{summaryLines[0]}</p>
       )}
     </section>
   );
@@ -379,8 +379,8 @@ function buildKeyFindings(detail: SubmissionDetail): KeyFinding[] {
 }
 
 const FIND_SEVERITY_LABELS = {
-  critical: { icon: "🔴", label: "Critical", cls: "border-red-400 bg-red-50" },
-  high: { icon: "🟠", label: "High", cls: "border-orange-400 bg-orange-50" },
+  critical: { icon: "🔴", label: "Critical", cls: "border-red-400 bg-status-threat/10" },
+  high: { icon: "🟠", label: "High", cls: "border-orange-400 bg-status-warning/10" },
   medium: { icon: "🟡", label: "Medium", cls: "border-amber-400 bg-amber-50" },
 };
 
@@ -404,15 +404,15 @@ function KeyFindingsSection({ findings }: { findings: KeyFinding[] }) {
             <div key={i} className={`rounded-lg border-l-4 p-3 ${meta.cls}`}>
               <div className="flex items-center gap-2 mb-1">
                 <span aria-hidden="true">{meta.icon}</span>
-                <span className="text-xs font-bold uppercase tracking-wide text-gray-600">
+                <span className="text-xs font-bold uppercase tracking-wide text-text-muted">
                   {meta.label} · {f.category === "dynamic" ? "Runtime" : f.category === "network" ? "Network" : "Static"}
                 </span>
               </div>
-              <p className="text-sm font-semibold text-gray-900">
-                <span className="text-gray-500 font-normal">Observed: </span>
+              <p className="text-sm font-semibold text-text-bright">
+                <span className="text-text-muted font-normal">Observed: </span>
                 {f.evidence}
               </p>
-              <p className="mt-1 text-sm text-gray-700">
+              <p className="mt-1 text-sm text-text">
                 <span className="font-semibold">Why it matters: </span>
                 {f.whyItMatters}
               </p>
@@ -431,7 +431,7 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
   if (!sf) {
     return (
       <AccordionSection id="section-static" title="Static Analysis" defaultOpen={false}>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text-muted">
           Static analysis data is unavailable for this submission.
         </p>
       </AccordionSection>
@@ -454,24 +454,24 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
       <div className="space-y-5">
         {/* APK Metadata */}
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
             APK Metadata
           </h3>
-          <div className="overflow-hidden rounded-lg border border-gray-200">
+          <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-gray-100">
                 {sf.package_name && (
                   <tr>
-                    <td className="px-3 py-2 font-medium text-gray-700 w-40">Package Name</td>
-                    <td className="px-3 py-2 font-mono text-gray-900 break-all">{sf.package_name}</td>
+                    <td className="px-3 py-2 font-medium text-text w-40">Package Name</td>
+                    <td className="px-3 py-2 font-mono text-text-bright break-all">{sf.package_name}</td>
                   </tr>
                 )}
                 {sf.obfuscation_score != null && (
                   <tr>
-                    <td className="px-3 py-2 font-medium text-gray-700">Obfuscation Score</td>
-                    <td className="px-3 py-2 text-gray-900">
+                    <td className="px-3 py-2 font-medium text-text">Obfuscation Score</td>
+                    <td className="px-3 py-2 text-text-bright">
                       {(sf.obfuscation_score * 100).toFixed(0)}%
-                      <span className="ml-2 text-xs text-gray-500">
+                      <span className="ml-2 text-xs text-text-muted">
                         {sf.obfuscation_score > 0.5
                           ? "(High — code may be deliberately obfuscated)"
                           : sf.obfuscation_score > 0.2
@@ -483,20 +483,20 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                 )}
                 {acg?.activities != null && (
                   <tr>
-                    <td className="px-3 py-2 font-medium text-gray-700">Activities</td>
-                    <td className="px-3 py-2 text-gray-900">{acg.activities}</td>
+                    <td className="px-3 py-2 font-medium text-text">Activities</td>
+                    <td className="px-3 py-2 text-text-bright">{acg.activities}</td>
                   </tr>
                 )}
                 {acg?.services != null && (
                   <tr>
-                    <td className="px-3 py-2 font-medium text-gray-700">Services</td>
-                    <td className="px-3 py-2 text-gray-900">{acg.services}</td>
+                    <td className="px-3 py-2 font-medium text-text">Services</td>
+                    <td className="px-3 py-2 text-text-bright">{acg.services}</td>
                   </tr>
                 )}
                 {acg?.receivers != null && (
                   <tr>
-                    <td className="px-3 py-2 font-medium text-gray-700">Receivers</td>
-                    <td className="px-3 py-2 text-gray-900">{acg.receivers}</td>
+                    <td className="px-3 py-2 font-medium text-text">Receivers</td>
+                    <td className="px-3 py-2 text-text-bright">{acg.receivers}</td>
                   </tr>
                 )}
               </tbody>
@@ -507,13 +507,13 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
         {/* Permissions */}
         {perms.length > 0 && (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Permissions ({perms.length} declared)
             </h3>
             {/* Summary pills */}
             <div className="mb-3 flex flex-wrap gap-2 text-xs">
               {highPerms.length > 0 && (
-                <span className="rounded-full bg-orange-100 text-orange-800 px-2 py-1 font-medium">
+                <span className="rounded-full bg-orange-100 text-status-warning px-2 py-1 font-medium">
                   🟠 {highPerms.length} High Relevance
                 </span>
               )}
@@ -523,19 +523,19 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                 </span>
               )}
               {stdPerms.length > 0 && (
-                <span className="rounded-full bg-gray-100 text-gray-700 px-2 py-1 font-medium">
+                <span className="rounded-full bg-background-surface text-text px-2 py-1 font-medium">
                   ⚪ {stdPerms.length} Standard
                 </span>
               )}
             </div>
-            <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-background-surface">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-8">Risk</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Permission</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 hidden md:table-cell">Status</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 hidden lg:table-cell">Risk Relevance</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-text-muted w-8">Risk</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-text-muted">Permission</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-text-muted hidden md:table-cell">Status</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-text-muted hidden lg:table-cell">Risk Relevance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -543,7 +543,7 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                     const cls = classifyPerm(p);
                     const isUsed = used.includes(p);
                     return (
-                      <tr key={p} className="hover:bg-gray-50">
+                      <tr key={p} className="hover:bg-background-surface">
                         <td className="px-3 py-2 text-center">
                           {cls === "high" ? (
                             <span title="High relevance" aria-label="High relevance">🟠</span>
@@ -553,19 +553,19 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                             <span title="Standard" aria-label="Standard">⚪</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-900 break-all">
+                        <td className="px-3 py-2 font-mono text-xs text-text-bright break-all">
                           {shortPerm(p)}
                         </td>
                         <td className="px-3 py-2 hidden md:table-cell">
                           <span className="text-xs">
                             {isUsed ? (
-                              <span className="text-gray-700">Declared + Observed</span>
+                              <span className="text-text">Declared + Observed</span>
                             ) : (
-                              <span className="text-gray-500">Declared</span>
+                              <span className="text-text-muted">Declared</span>
                             )}
                           </span>
                         </td>
-                        <td className="px-3 py-2 hidden lg:table-cell text-xs text-gray-600">
+                        <td className="px-3 py-2 hidden lg:table-cell text-xs text-text-muted">
                           {PERM_RELEVANCE[p] ?? "Standard permission with no specific elevated relevance."}
                         </td>
                       </tr>
@@ -577,7 +577,7 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
             {perms.length > 6 && (
               <button
                 onClick={() => setShowAllPerms((v) => !v)}
-                className="mt-2 text-xs text-indigo-600 hover:underline"
+                className="mt-2 text-xs text-primary-cyan hover:underline"
               >
                 {showAllPerms ? "Show fewer permissions" : `Show all ${perms.length} permissions`}
               </button>
@@ -588,16 +588,16 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
         {/* Certificate Info */}
         {cert && (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Certificate / Signing
             </h3>
-            <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-gray-100">
                   {cert.self_signed != null && (
                     <tr>
-                      <td className="px-3 py-2 font-medium text-gray-700 w-40">Self-signed</td>
-                      <td className="px-3 py-2 text-gray-900">
+                      <td className="px-3 py-2 font-medium text-text w-40">Self-signed</td>
+                      <td className="px-3 py-2 text-text-bright">
                         {cert.self_signed ? (
                           <span className="text-amber-700">Yes — not signed by a trusted CA</span>
                         ) : (
@@ -608,20 +608,20 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                   )}
                   {cert.sha1 && (
                     <tr>
-                      <td className="px-3 py-2 font-medium text-gray-700">SHA-1 Fingerprint</td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-900 break-all">{cert.sha1}</td>
+                      <td className="px-3 py-2 font-medium text-text">SHA-1 Fingerprint</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text-bright break-all">{cert.sha1}</td>
                     </tr>
                   )}
                   {cert.not_before && (
                     <tr>
-                      <td className="px-3 py-2 font-medium text-gray-700">Valid From</td>
-                      <td className="px-3 py-2 text-gray-900">{cert.not_before}</td>
+                      <td className="px-3 py-2 font-medium text-text">Valid From</td>
+                      <td className="px-3 py-2 text-text-bright">{cert.not_before}</td>
                     </tr>
                   )}
                   {cert.not_after && (
                     <tr>
-                      <td className="px-3 py-2 font-medium text-gray-700">Valid Until</td>
-                      <td className="px-3 py-2 text-gray-900">{cert.not_after}</td>
+                      <td className="px-3 py-2 font-medium text-text">Valid Until</td>
+                      <td className="px-3 py-2 text-text-bright">{cert.not_after}</td>
                     </tr>
                   )}
                 </tbody>
@@ -633,7 +633,7 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
         {/* API indicators */}
         {acg?.sensitive_calls && Object.values(acg.sensitive_calls).some((val: any) => (Array.isArray(val) ? val.length : Number(val)) > 0) && (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Sensitive API Indicators
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -642,7 +642,7 @@ function StaticAnalysisSection({ sf }: { sf: StaticFindingOut | null | undefined
                 .map(([cat, val]: [string, any]) => {
                   const num = Array.isArray(val) ? val.length : Number(val);
                   return (
-                    <span key={cat} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-1 text-xs font-medium text-orange-800">
+                    <span key={cat} className="rounded-md bg-status-warning/10 border border-status-warning/20 px-2 py-1 text-xs font-medium text-status-warning">
                       {cat} ({num} call{num !== 1 ? "s" : ""})
                     </span>
                   );
@@ -662,7 +662,7 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
   if (!dyn) {
     return (
       <AccordionSection id="section-runtime" title="Runtime Behaviour" defaultOpen={false}>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text-muted">
           Runtime behaviour data is unavailable. Dynamic analysis may not have completed or the sandbox was not executed.
         </p>
       </AccordionSection>
@@ -726,10 +726,10 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
         <div
           className={`rounded-lg border p-3 text-xs ${
             prov.tone === "green"
-              ? "border-green-200 bg-green-50 text-green-900"
+              ? "border-status-success/20 bg-status-success/10 text-green-900"
               : prov.tone === "yellow"
                 ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-gray-200 bg-gray-50 text-gray-700"
+                : "border-border bg-background-surface text-text"
           }`}
         >
           <p className="font-semibold">Evidence source: {prov.label}</p>
@@ -738,7 +738,7 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
         </div>
         {/* Behaviour flags */}
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
             Observed Behaviour Flags
           </h3>
           <div className="space-y-2">
@@ -747,8 +747,8 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                 key={item.key}
                 className={`rounded-lg border p-3 ${
                   item.detected
-                    ? "border-orange-200 bg-orange-50"
-                    : "border-gray-200 bg-gray-50"
+                    ? "border-status-warning/20 bg-status-warning/10"
+                    : "border-border bg-background-surface"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -756,12 +756,12 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                     <span aria-label={item.detected ? "Detected" : "Not detected"}>
                       {item.detected ? "🟠" : "✅"}
                     </span>
-                    <span className="text-sm font-semibold text-gray-900">{item.label}</span>
+                    <span className="text-sm font-semibold text-text-bright">{item.label}</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         item.detected
-                          ? "bg-orange-100 text-orange-800"
-                          : "bg-green-100 text-green-800"
+                          ? "bg-orange-100 text-status-warning"
+                          : "bg-green-100 text-status-success"
                       }`}
                     >
                       {item.detected ? "Detected" : "Not Detected"}
@@ -770,11 +770,11 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                 </div>
                 {item.detected && (
                   <div className="mt-2 ml-6 space-y-1">
-                    <p className="text-xs text-gray-700">
+                    <p className="text-xs text-text">
                       <span className="font-semibold">{prov.evidenceLabel}: </span>
                       {item.desc}
                     </p>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-text-muted">
                       <span className="font-semibold">Why it matters: </span>
                       {item.matter}
                     </p>
@@ -788,43 +788,43 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
         {/* Network connections */}
         {networkCalls.length > 0 ? (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               {prov.runtimeObserved
                 ? `Network Connections Observed (${networkCalls.length})`
                 : `Network Connections Reported (${networkCalls.length})`}
             </h3>
-            <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50">
+                <thead className="bg-background-surface">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Destination</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Port</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Protocol</th>
+                    <th className="px-3 py-2 text-left font-semibold text-text-muted">Destination</th>
+                    <th className="px-3 py-2 text-left font-semibold text-text-muted">Port</th>
+                    <th className="px-3 py-2 text-left font-semibold text-text-muted">Protocol</th>
                     {/* Origin (how the row was produced) and Classification (what
                         the row means) are separate columns on purpose. They used
                         to share one column, where the threat marker "Flagged
                         destination" alternated with the provenance word
                         "Observed" — conflating evidence with assessment. */}
-                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Origin</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-600">Classification</th>
+                    <th className="px-3 py-2 text-left font-semibold text-text-muted">Origin</th>
+                    <th className="px-3 py-2 text-left font-semibold text-text-muted">Classification</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {networkCalls.slice(0, 20).map((call: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-gray-900">
+                    <tr key={idx} className="hover:bg-background-surface">
+                      <td className="px-3 py-2 font-mono text-text-bright">
                         {call.host ?? call.url ?? call.destination ?? "Unknown"}
                       </td>
-                      <td className="px-3 py-2 text-gray-700">{call.port ?? "—"}</td>
-                      <td className="px-3 py-2 text-gray-700 uppercase">{call.protocol ?? "—"}</td>
+                      <td className="px-3 py-2 text-text">{call.port ?? "—"}</td>
+                      <td className="px-3 py-2 text-text uppercase">{call.protocol ?? "—"}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                             origin.tone === "green"
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-green-100 text-status-success"
                               : origin.tone === "yellow"
                                 ? "bg-amber-100 text-amber-800"
-                                : "bg-gray-100 text-gray-700"
+                                : "bg-background-surface text-text"
                           }`}
                         >
                           {origin.label}
@@ -832,11 +832,11 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                       </td>
                       <td className="px-3 py-2">
                         {call.sink === true ? (
-                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-status-warning">
                             Monitored sink
                           </span>
                         ) : (
-                          <span className="text-gray-500">Unclassified</span>
+                          <span className="text-text-muted">Unclassified</span>
                         )}
                       </td>
                     </tr>
@@ -844,12 +844,12 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                 </tbody>
               </table>
               {networkCalls.length > 20 && (
-                <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500 text-center border-t border-gray-200">
+                <div className="px-3 py-2 bg-background-surface text-xs text-text-muted text-center border-t border-border">
                   Showing 20 of {networkCalls.length} connections
                 </div>
               )}
             </div>
-            <p className="mt-1.5 text-xs text-gray-500">
+            <p className="mt-1.5 text-xs text-text-muted">
               <span className="font-semibold">Origin</span> records how the row was
               produced; <span className="font-semibold">Classification</span> records
               what it means. "Monitored sink" means the sandbox recorded this host as a
@@ -860,10 +860,10 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
           </div>
         ) : (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Network Connections
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-text-muted">
               {prov.runtimeObserved
                 ? "No network connections were recorded during the live sandbox run."
                 : "No network connections are listed. Because this finding did not come from a verified live run, this is not evidence that the application made no connections."}
@@ -889,16 +889,16 @@ function ThreatIntelligenceSection({
     <AccordionSection id="section-threat-intel" title="Threat Intelligence" defaultOpen={false}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* VirusTotal */}
-        <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-800">VirusTotal</h3>
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-bright">VirusTotal</h3>
           {!vt ? (
-            <p className="text-sm text-gray-500">VirusTotal results are loading or unavailable.</p>
+            <p className="text-sm text-text-muted">VirusTotal results are loading or unavailable.</p>
           ) : vt.status === "not_configured" ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-text-muted">
               ⚪ VirusTotal was not configured for this deployment. No results available.
             </p>
           ) : vt.status === "not_found" ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-text-muted">
               ⚪ This file hash was not found in VirusTotal's database. It may be a novel or unreported sample.
             </p>
           ) : vt.status === "error" ? (
@@ -907,8 +907,8 @@ function ThreatIntelligenceSection({
             </p>
           ) : vt.status === "ok" ? (
             <div className="space-y-3">
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">
+              <p className="text-sm text-text">
+                <span className="font-semibold text-text-bright">
                   {(vt.malicious ?? 0) + (vt.suspicious ?? 0)}
                 </span>{" "}
                 of{" "}
@@ -931,44 +931,44 @@ function ThreatIntelligenceSection({
                   const pct = Math.round((count / total) * 100);
                   return (
                     <div key={label} className="flex items-center gap-2 text-xs">
-                      <span className="w-20 text-gray-600">{label}</span>
-                      <div className="flex-1 rounded-full bg-gray-100 h-2">
+                      <span className="w-20 text-text-muted">{label}</span>
+                      <div className="flex-1 rounded-full bg-background-surface h-2">
                         <div
                           className={`h-2 rounded-full ${color}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="w-6 text-right text-gray-900 font-medium">{count}</span>
+                      <span className="w-6 text-right text-text-bright font-medium">{count}</span>
                     </div>
                   );
                 })}
               </div>
               {vt.meaningful_name && (
-                <p className="text-xs text-gray-600 mt-2">
+                <p className="text-xs text-text-muted mt-2">
                   Identified as: <span className="font-semibold">{vt.meaningful_name}</span>
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Status: {vt.status}</p>
+            <p className="text-sm text-text-muted">Status: {vt.status}</p>
           )}
         </div>
 
         {/* Campaign Cluster */}
-        <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-800">Campaign Cluster</h3>
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-bright">Campaign Cluster</h3>
           {detail.cluster ? (
             <div className="space-y-2">
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-text">
                 This submission has been associated with cluster:{" "}
-                <span className="font-semibold text-gray-900">{detail.cluster.cluster_name}</span>
+                <span className="font-semibold text-text-bright">{detail.cluster.cluster_name}</span>
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-text-muted">
                 Cluster analysis groups submissions with similar characteristics to identify potential campaign patterns. This is a similarity association, not confirmation of a specific threat.
               </p>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-text-muted">
               ⚪ No cluster association found. This submission was not assigned to any known campaign cluster.
             </p>
           )}
@@ -983,7 +983,7 @@ function MLRiskSection({ mlScore }: { mlScore?: MLScore | null }) {
   if (!mlScore) {
     return (
       <AccordionSection id="section-ml" title="ML Risk Assessment" defaultOpen={false}>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-text-muted">
           ML scoring data is unavailable for this submission.
         </p>
       </AccordionSection>
@@ -997,31 +997,31 @@ function MLRiskSection({ mlScore }: { mlScore?: MLScore | null }) {
     <AccordionSection id="section-ml" title="ML Risk Assessment" defaultOpen={false}>
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
-            <p className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+            <p className="text-2xl font-bold text-text-bright">
               {(mlScore.classifier_score * 100).toFixed(1)}%
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">Classifier Probability</p>
+            <p className="text-xs text-text-muted mt-0.5">Classifier Probability</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
-            <p className="text-2xl font-bold text-gray-900">
+          <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+            <p className="text-2xl font-bold text-text-bright">
               {(mlScore.novelty_score * 100).toFixed(1)}%
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">Novelty Score</p>
-            <p className="text-xs text-gray-400">(higher = less similar to known samples)</p>
+            <p className="text-xs text-text-muted mt-0.5">Novelty Score</p>
+            <p className="text-xs text-text-muted/50">(higher = less similar to known samples)</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
-            <p className="text-xs font-mono text-gray-600 mt-1 break-all">{mlScore.model_version}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Model Version</p>
+          <div className="rounded-lg border border-border bg-background-surface p-3 text-center">
+            <p className="text-xs font-mono text-text-muted mt-1 break-all">{mlScore.model_version}</p>
+            <p className="text-xs text-text-muted mt-0.5">Model Version</p>
           </div>
         </div>
 
         {hasShap ? (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Top Contributing Signals (SHAP)
             </h3>
-            <p className="mb-3 text-xs text-gray-500">
+            <p className="mb-3 text-xs text-text-muted">
               These signals from the APK contributed most to the model's risk assessment. Each item originates from the ML model's SHAP analysis.
             </p>
             <div className="space-y-2">
@@ -1036,23 +1036,23 @@ function MLRiskSection({ mlScore }: { mlScore?: MLScore | null }) {
                       <span className={`text-sm ${isRisk ? "text-orange-600" : "text-green-600"}`} aria-hidden>
                         {isRisk ? "▲" : "▼"}
                       </span>
-                      <span className="text-xs text-gray-700 w-40 shrink-0 truncate" title={f.feature}>
+                      <span className="text-xs text-text w-40 shrink-0 truncate" title={f.feature}>
                         {f.feature}
                       </span>
-                      <div className="flex-1 rounded-full bg-gray-100 h-2">
+                      <div className="flex-1 rounded-full bg-background-surface h-2">
                         <div
                           className={`h-2 rounded-full ${isRisk ? "bg-orange-400" : "bg-green-400"}`}
                           style={{ width: `${Math.max(4, barPct)}%` }}
                         />
                       </div>
-                      <span className="text-xs font-mono text-gray-500 w-16 text-right">
+                      <span className="text-xs font-mono text-text-muted w-16 text-right">
                         {f.contribution.toFixed(4)}
                       </span>
                     </div>
                   );
                 })}
             </div>
-            <div className="mt-2 flex gap-4 text-xs text-gray-500">
+            <div className="mt-2 flex gap-4 text-xs text-text-muted">
               <span className="flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded bg-orange-400" /> Increases risk
               </span>
@@ -1062,7 +1062,7 @@ function MLRiskSection({ mlScore }: { mlScore?: MLScore | null }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-text-muted">
             Model contribution details (SHAP) are unavailable for this submission.
           </p>
         )}
@@ -1088,8 +1088,8 @@ function LLMAssessmentSection({ report }: { report?: LLMReport | null }) {
             ⚠ {report.sanitization_flags.count} prompt-injection string(s) were detected in the APK content and redacted before LLM analysis.
           </div>
         )}
-        <p className="text-sm leading-relaxed text-gray-700">{summary}</p>
-        <p className="text-xs text-gray-400">
+        <p className="text-sm leading-relaxed text-text">{summary}</p>
+        <p className="text-xs text-text-muted/50">
           Model: {report.model_used}
           {report.model_used?.includes("fallback") &&
             " — live LLM was unavailable; this summary was generated by the deterministic fallback system."}
@@ -1109,13 +1109,13 @@ function TTPSection({ ttps }: { ttps: TTPEntry[] }) {
       title="TTP Mapping (MITRE ATT&CK Mobile)"
       defaultOpen={false}
       badge={
-        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700">
+        <span className="rounded-full bg-primary-blue/10 px-2 py-0.5 text-xs font-bold text-indigo-700">
           {ttps.length}
         </span>
       }
     >
       <div className="space-y-3">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-text-muted">
           These techniques are mapped from backend LLM analysis and are based on observed indicators. Confidence is provided by the analysis model.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1123,26 +1123,26 @@ function TTPSection({ ttps }: { ttps: TTPEntry[] }) {
             const confPct = Math.round(t.confidence * 100);
             const confColor =
               confPct >= 80
-                ? "bg-orange-100 text-orange-800"
+                ? "bg-orange-100 text-status-warning"
                 : confPct >= 50
                 ? "bg-amber-100 text-amber-800"
-                : "bg-gray-100 text-gray-600";
+                : "bg-background-surface text-text-muted";
             return (
-              <div key={t.id} className="rounded-lg border border-gray-200 p-3">
+              <div key={t.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="text-sm font-semibold text-gray-900">{t.name}</span>
+                  <span className="text-sm font-semibold text-text-bright">{t.name}</span>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${confColor}`}>
                     {confPct}% confidence
                   </span>
                 </div>
-                <div className="font-mono text-xs text-indigo-600 mb-2">{t.id}</div>
+                <div className="font-mono text-xs text-primary-cyan mb-2">{t.id}</div>
                 {t.evidence ? (
-                  <div className="text-xs text-gray-600 border-l-2 border-indigo-200 pl-2">
+                  <div className="text-xs text-text-muted border-l-2 border-indigo-200 pl-2">
                     <span className="font-semibold">Evidence: </span>
                     {t.evidence}
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-400 border-l-2 border-gray-200 pl-2">
+                  <div className="text-xs text-text-muted/50 border-l-2 border-border pl-2">
                     Specific evidence details not provided.
                   </div>
                 )}
@@ -1176,14 +1176,14 @@ function LimitationsSection({
   }
 
   return (
-    <section className="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
+    <section className="rounded-xl border border-status-warning/20 bg-status-warning/10 p-5">
       <h2 className="mb-2 flex items-center gap-2 text-base font-bold text-yellow-900">
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         Analysis Limitations
       </h2>
-      <p className="mb-3 text-sm text-yellow-800">
+      <p className="mb-3 text-sm text-status-warning">
         {overallState === "FAILED"
           ? "A critical pipeline stage failed. The final risk assessment may be incomplete or unavailable."
           : overallState === "COMPLETED_UNVERIFIED"
@@ -1192,10 +1192,10 @@ function LimitationsSection({
       </p>
       {provenanceLimited && provenance && (
         <ul className="mb-3 space-y-1.5">
-          <li className="text-sm text-yellow-800">
+          <li className="text-sm text-status-warning">
             <strong>Sandbox provenance</strong>: {provenance.label}. {provenance.summary}
           </li>
-          <li className="text-sm text-yellow-800">
+          <li className="text-sm text-status-warning">
             <strong>Containment</strong>: {provenance.containmentLabel}. Sandbox egress
             containment is not asserted for this run.
           </li>
@@ -1204,7 +1204,7 @@ function LimitationsSection({
       {issues.length > 0 && (
         <ul className="space-y-1.5">
           {issues.map((iss) => (
-            <li key={iss.stage} className="text-sm text-yellow-800">
+            <li key={iss.stage} className="text-sm text-status-warning">
               <strong>{iss.stage}</strong>:{" "}
               {iss.status === "failed" ? "Failed" : "Skipped"}.
               {iss.error_message ? ` (${iss.error_message})` : ""}
@@ -1232,13 +1232,13 @@ function RecommendedActionSection({ verdict }: { verdict?: Verdict | null }) {
   if (!verdict?.recommended_action) return null;
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-3 text-base font-bold text-gray-900">Recommended Action</h2>
+    <section className="rounded-xl border border-border bg-background-elevated p-5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+      <h2 className="mb-3 text-base font-bold text-text-bright">Recommended Action</h2>
       <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-800">
+        <span className="rounded-md border border-border bg-background-surface px-4 py-2 text-sm font-semibold text-text-bright">
           {verdict.recommended_action.replace(/_/g, " ").toUpperCase()}
         </span>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-text-muted">
           {ACTION_DESC[verdict.recommended_action] ?? ""}
         </p>
       </div>
@@ -1268,7 +1268,7 @@ export default function ReportViewer({
       <div className="flex justify-end no-print">
         <button
           onClick={exportFn}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-background-surface transition-colors"
         >
           Export PDF
         </button>

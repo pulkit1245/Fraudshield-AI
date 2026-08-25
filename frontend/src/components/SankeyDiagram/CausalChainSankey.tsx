@@ -50,8 +50,8 @@ export default function CausalChainSankey({ stages, band }: CausalChainSankeyPro
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="mb-2 text-sm font-semibold text-gray-700">Causal behaviour chain</h2>
+    <div className="rounded-xl border border-border bg-background-elevated p-4">
+      <h2 className="mb-2 text-sm font-semibold text-text">Causal behaviour chain</h2>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} width="100%" role="img"
            aria-label="Causal chain from static signals to verdict">
         {stages.map((s, ci) => (
