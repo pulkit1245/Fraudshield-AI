@@ -1,4 +1,6 @@
 # FraudShield AI — Render.com Blueprint
+# Free tier only: backend API + frontend + postgres + redis (keyvalue)
+# Workers (celery) run locally on Mac alongside the emulator.
 
 databases:
   - name: fraudshield-db
@@ -6,11 +8,15 @@ databases:
     user: fraudshield
     plan: free
 
-redis:
-  - name: fraudshield-redis
-
 services:
 
+  # ── Redis (Key-Value store) ──────────────────────────────────────────────
+  - type: keyvalue
+    name: fraudshield-redis
+    plan: free
+    ipAllowList: []
+
+  # ── Backend API ──────────────────────────────────────────────────────────
   - type: web
     name: fraudshield-backend
     plan: free
@@ -30,8 +36,9 @@ services:
           name: fraudshield-db
           property: connectionString
       - key: REDIS_URL
-        fromRedis:
+        fromService:
           name: fraudshield-redis
+          type: keyvalue
           property: connectionString
       - key: RABBITMQ_URL
         sync: false
@@ -64,88 +71,7 @@ services:
       - key: MALWAREBAZAAR_ENABLED
         value: "false"
 
-  - type: worker
-    name: fraudshield-worker-static
-    env: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    startCommand: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=1
-    autoDeploy: true
-    envVars:
-      - key: ENVIRONMENT
-        value: production
-      - key: DEBUG
-        value: "false"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: fraudshield-db
-          property: connectionString
-      - key: REDIS_URL
-        fromRedis:
-          name: fraudshield-redis
-          property: connectionString
-      - key: RABBITMQ_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: STORAGE_BUCKET
-        value: fraudshield-apks
-      - key: STORAGE_KEY
-        sync: false
-      - key: STORAGE_SECRET
-        sync: false
-      - key: STORAGE_ENDPOINT_URL
-        sync: false
-      - key: STORAGE_REGION
-        value: us-east-005
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_API_KEY_2
-        sync: false
-      - key: SANDBOX_MODE
-        value: simulate
-
-  - type: worker
-    name: fraudshield-beat
-    env: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    startCommand: celery -A app.workers.celery_app beat -l info
-    autoDeploy: true
-    envVars:
-      - key: ENVIRONMENT
-        value: production
-      - key: DEBUG
-        value: "false"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: fraudshield-db
-          property: connectionString
-      - key: REDIS_URL
-        fromRedis:
-          name: fraudshield-redis
-          property: connectionString
-      - key: RABBITMQ_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: STORAGE_BUCKET
-        value: fraudshield-apks
-      - key: STORAGE_KEY
-        sync: false
-      - key: STORAGE_SECRET
-        sync: false
-      - key: STORAGE_ENDPOINT_URL
-        sync: false
-      - key: STORAGE_REGION
-        value: us-east-005
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_API_KEY_2
-        sync: false
-      - key: SANDBOX_MODE
-        value: simulate
-
+  # ── Frontend (Static Site) ───────────────────────────────────────────────
   - type: web
     name: fraudshield-frontend
     env: static
