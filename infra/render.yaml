@@ -1,38 +1,26 @@
 # FraudShield AI — Render.com Blueprint
-# Deploy with: connect this repo in Render dashboard → it auto-reads this file.
-# Repo root is the build context. All paths below are relative to repo root.
-#
-# Services deployed:
-#   - fraudshield-backend   (FastAPI, web service)
-#   - fraudshield-worker    (Celery static_queue, background worker)
-#   - fraudshield-beat      (Celery beat scheduler, background worker)
-#   - fraudshield-frontend  (Vite → Static Site)
-#
-# Managed infra:
-#   - PostgreSQL (pgvector extension enabled via SQL migration)
-#   - Redis
+# Minimal, proven-working blueprint spec.
+# Blueprint path: infra/render.yaml
 
 databases:
   - name: fraudshield-db
     databaseName: fraudshield
     user: fraudshield
     plan: free
-    postgresMajorVersion: 15
 
 redis:
   - name: fraudshield-redis
     plan: free
-    maxmemoryPolicy: noeviction
 
 services:
-  # ── Backend API ────────────────────────────────────────────────────────────
+
+  # ── Backend API ──────────────────────────────────────────────────────────
   - type: web
     name: fraudshield-backend
     plan: free
     env: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # Run migrations then start uvicorn
     startCommand: >-
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -51,17 +39,14 @@ services:
         fromRedis:
           name: fraudshield-redis
           property: connectionString
-      # RabbitMQ — set this manually from CloudAMQP dashboard
       - key: RABBITMQ_URL
         sync: false
-      # JWT
       - key: JWT_SECRET
         generateValue: true
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "15"
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "7"
-      # Object storage (Backblaze B2 / Cloudflare R2)
       - key: STORAGE_BUCKET
         value: fraudshield-apks
       - key: STORAGE_KEY
@@ -72,22 +57,18 @@ services:
         sync: false
       - key: STORAGE_REGION
         value: us-east-005
-      # LLM Keys
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_API_KEY_2
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      # CORS: allow the Render frontend URL + localhost dev
-      # Update fraudshield-frontend.onrender.com after first deploy
       - key: CORS_ORIGINS
         value: "https://fraudshield-frontend.onrender.com,http://localhost:5173"
       - key: SANDBOX_MODE
         value: simulate
       - key: EXPLORE_APK
         value: "false"
-      # Threat Intel
       - key: OTX_API_KEY
         sync: false
       - key: MALWAREBAZAAR_ENABLED
@@ -99,7 +80,7 @@ services:
       - key: FLOWER_PASSWORD
         generateValue: true
 
-  # ── Celery Static Queue Worker ─────────────────────────────────────────────
+  # ── Celery Static Queue Worker ───────────────────────────────────────────
   - type: worker
     name: fraudshield-worker-static
     plan: free
@@ -126,10 +107,7 @@ services:
       - key: RABBITMQ_URL
         sync: false
       - key: JWT_SECRET
-        fromService:
-          name: fraudshield-backend
-          type: web
-          envVarKey: JWT_SECRET
+        sync: false
       - key: STORAGE_BUCKET
         value: fraudshield-apks
       - key: STORAGE_KEY
@@ -144,14 +122,12 @@ services:
         sync: false
       - key: GROQ_API_KEY_2
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: SANDBOX_MODE
         value: simulate
       - key: CORS_ORIGINS
         value: "https://fraudshield-frontend.onrender.com"
 
-  # ── Celery Beat Scheduler ──────────────────────────────────────────────────
+  # ── Celery Beat Scheduler ────────────────────────────────────────────────
   - type: worker
     name: fraudshield-beat
     plan: free
@@ -176,10 +152,7 @@ services:
       - key: RABBITMQ_URL
         sync: false
       - key: JWT_SECRET
-        fromService:
-          name: fraudshield-backend
-          type: web
-          envVarKey: JWT_SECRET
+        sync: false
       - key: STORAGE_BUCKET
         value: fraudshield-apks
       - key: STORAGE_KEY
@@ -194,36 +167,22 @@ services:
         sync: false
       - key: GROQ_API_KEY_2
         sync: false
-      - key: CORS_ORIGINS
-        value: "https://fraudshield-frontend.onrender.com"
       - key: SANDBOX_MODE
         value: simulate
+      - key: CORS_ORIGINS
+        value: "https://fraudshield-frontend.onrender.com"
 
-  # ── Frontend (Static Site) ─────────────────────────────────────────────────
+  # ── Frontend (Static Site) ───────────────────────────────────────────────
   - type: web
     name: fraudshield-frontend
-    plan: free
     env: static
-    buildCommand: cd frontend && npm ci && VITE_API_BASE_URL=$VITE_API_BASE_URL npm run build
+    buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
-    pullRequestPreviewsEnabled: false
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
+    autoDeploy: true
     routes:
-      # SPA fallback — all routes serve index.html
       - type: rewrite
         source: /*
         destination: /index.html
-    buildFilter:
-      paths:
-        - frontend/**
     envVars:
-      # After first deploy, paste your backend URL here:
-      # e.g. https://fraudshield-backend.onrender.com
       - key: VITE_API_BASE_URL
         sync: false
