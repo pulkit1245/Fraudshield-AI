@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+!infra/.env.local-dynamic.example
 backend/adb_keys/
 
 # Python
