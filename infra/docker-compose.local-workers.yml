@@ -1,0 +1,65 @@
+# FraudShield AI — Local Workers Environment
+# ──────────────────────────────────────────
+# Run this on your Mac ALONGSIDE the Android Emulator.
+# These workers pick tasks from the REMOTE cloud RabbitMQ,
+# run analysis locally, and upload results to cloud storage.
+#
+# Usage:
+#   1. Fill in .env.local-workers with your remote URLs
+#   2. Make sure your emulator is running:
+#        ~/Library/Android/sdk/emulator/emulator @Medium_Phone -dns-server 8.8.8.8
+#   3. Start workers:
+#        docker compose -f infra/docker-compose.local-workers.yml up
+
+name: fraudshield-local-workers
+
+x-worker-base: &worker-base
+  build:
+    context: ../backend
+    dockerfile: Dockerfile
+  env_file:
+    - .env.local-workers
+  restart: on-failure
+
+services:
+  worker-static:
+    <<: *worker-base
+    command: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=2
+
+  beat:
+    <<: *worker-base
+    command: celery -A app.workers.celery_app beat -l info
+
+  worker-dynamic:
+    <<: *worker-base
+    command: >
+      celery -A app.workers.celery_app worker
+      -Q dynamic_queue -l info --concurrency=1
+    environment:
+      SANDBOX_MODE: live
+      SANDBOX_ADB_SERIAL: "emulator-5554"
+      ADB_SERVER_SOCKET: "tcp:host.docker.internal:5037"
+      ADB_BIN: adb
+      SANDBOX_RUN_SECONDS: "${SANDBOX_RUN_SECONDS:-30}"
+      EXPLORE_APK: "true"
+    volumes:
+      - dynamic_tmp:/tmp/fraudshield-storage
+      - ~/.android/adbkey:/home/appuser/.android/adbkey:ro
+      - ~/.android/adbkey.pub:/home/appuser/.android/adbkey.pub:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 4G
+
+volumes:
+  dynamic_tmp:
