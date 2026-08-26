@@ -1,6 +1,4 @@
 # FraudShield AI — Render.com Blueprint
-# Minimal, proven-working blueprint spec.
-# Blueprint path: infra/render.yaml
 
 databases:
   - name: fraudshield-db
@@ -10,20 +8,16 @@ databases:
 
 redis:
   - name: fraudshield-redis
-    plan: free
 
 services:
 
-  # ── Backend API ──────────────────────────────────────────────────────────
   - type: web
     name: fraudshield-backend
     plan: free
     env: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    startCommand: >-
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    startCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     healthCheckPath: /health
     autoDeploy: true
     envVars:
@@ -61,35 +55,21 @@ services:
         sync: false
       - key: GROQ_API_KEY_2
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: CORS_ORIGINS
         value: "https://fraudshield-frontend.onrender.com,http://localhost:5173"
       - key: SANDBOX_MODE
         value: simulate
       - key: EXPLORE_APK
         value: "false"
-      - key: OTX_API_KEY
-        sync: false
       - key: MALWAREBAZAAR_ENABLED
         value: "false"
-      - key: VIRUSTOTAL_API_KEY
-        sync: false
-      - key: FLOWER_USER
-        value: admin
-      - key: FLOWER_PASSWORD
-        generateValue: true
 
-  # ── Celery Static Queue Worker ───────────────────────────────────────────
   - type: worker
     name: fraudshield-worker-static
-    plan: free
     env: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    startCommand: >-
-      celery -A app.workers.celery_app worker
-      -Q static_queue -l info --concurrency=1
+    startCommand: celery -A app.workers.celery_app worker -Q static_queue -l info --concurrency=1
     autoDeploy: true
     envVars:
       - key: ENVIRONMENT
@@ -124,13 +104,9 @@ services:
         sync: false
       - key: SANDBOX_MODE
         value: simulate
-      - key: CORS_ORIGINS
-        value: "https://fraudshield-frontend.onrender.com"
 
-  # ── Celery Beat Scheduler ────────────────────────────────────────────────
   - type: worker
     name: fraudshield-beat
-    plan: free
     env: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -169,10 +145,7 @@ services:
         sync: false
       - key: SANDBOX_MODE
         value: simulate
-      - key: CORS_ORIGINS
-        value: "https://fraudshield-frontend.onrender.com"
 
-  # ── Frontend (Static Site) ───────────────────────────────────────────────
   - type: web
     name: fraudshield-frontend
     env: static
