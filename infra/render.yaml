@@ -200,8 +200,10 @@ services:
         value: simulate
 
   # ── Frontend (Static Site) ─────────────────────────────────────────────────
-  - type: static
+  - type: web
     name: fraudshield-frontend
+    plan: free
+    env: static
     buildCommand: cd frontend && npm ci && VITE_API_BASE_URL=$VITE_API_BASE_URL npm run build
     staticPublishPath: ./frontend/dist
     pullRequestPreviewsEnabled: false
