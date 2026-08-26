@@ -112,19 +112,28 @@ function AccordionSection({
   return (
     <section
       id={id}
-      className="rounded-xl border border-border bg-background-elevated shadow-[0_4px_12px_rgba(0,0,0,0.1)] overflow-hidden"
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: "#1a1b1e",
+        border: "1px solid rgba(255,255,255,0.10)",
+        boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.08)",
+      }}
     >
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-background-surface transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left transition-colors"
+        style={{ background: "transparent" }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
         aria-expanded={open}
       >
         <div className="flex items-center gap-3">
-          <span className="text-base font-semibold text-text-bright">{title}</span>
+          <span className="text-base font-semibold" style={{ color: "#e5e2e3" }}>{title}</span>
           {badge}
         </div>
         <svg
-          className={`h-4 w-4 text-text-muted/50 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+          style={{ color: "rgba(154,157,163,0.60)" }}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -133,7 +142,14 @@ function AccordionSection({
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && <div className="border-t border-border px-5 py-4">{children}</div>}
+      {open && (
+        <div
+          className="px-5 py-4"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -145,17 +161,17 @@ function RiskGauge({ score, band }: { score: number; band: SeverityBand }) {
   const pct = Math.max(0, Math.min(100, score)) / 100;
   return (
     <svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label={`Risk score ${score} out of 100`}>
-      <circle cx="60" cy="60" r={radius} fill="none" stroke="#eee" strokeWidth="10" />
+      <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="10" />
       <circle
         cx="60" cy="60" r={radius} fill="none"
         stroke={BAND_COLOR[band]} strokeWidth="10"
         strokeLinecap="round" strokeDasharray={circ}
         strokeDashoffset={circ * (1 - pct)} transform="rotate(-90 60 60)"
       />
-      <text x="60" y="58" textAnchor="middle" fontSize="26" fontWeight="800" fill="#111">
+      <text x="60" y="58" textAnchor="middle" fontSize="26" fontWeight="800" fill="#e5e2e3">
         {score}
       </text>
-      <text x="60" y="76" textAnchor="middle" fontSize="11" fill="#666">/ 100</text>
+      <text x="60" y="76" textAnchor="middle" fontSize="11" fill="#9A9DA3">/ 100</text>
     </svg>
   );
 }
@@ -185,14 +201,14 @@ function StatusPill({
   label: string;
   color: "green" | "yellow" | "red" | "gray";
 }) {
-  const cls = {
-    green: "bg-green-100 text-status-success border-status-success/20",
-    yellow: "bg-amber-100 text-amber-800 border-amber-200",
-    red: "bg-red-100 text-status-threat border-status-threat/20",
-    gray: "bg-background-surface text-text border-border",
-  }[color];
+  const styles: React.CSSProperties = {
+    green:  { background: "rgba(74,222,128,0.12)",  color: "#4ADE80", border: "1px solid rgba(74,222,128,0.25)" },
+    yellow: { background: "rgba(251,191,36,0.12)",  color: "#FBBF24", border: "1px solid rgba(251,191,36,0.25)" },
+    red:    { background: "rgba(255,77,103,0.12)",  color: "#FF4D67", border: "1px solid rgba(255,77,103,0.25)" },
+    gray:   { background: "rgba(255,255,255,0.06)", color: "#c6c5d8", border: "1px solid rgba(255,255,255,0.12)" },
+  }[color] as React.CSSProperties;
   return (
-    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+    <span className="rounded-full px-2.5 py-0.5 text-xs font-medium" style={styles}>
       {label}
     </span>
   );
@@ -378,10 +394,15 @@ function buildKeyFindings(detail: SubmissionDetail): KeyFinding[] {
   return findings;
 }
 
+const FIND_SEVERITY_STYLES: Record<string, React.CSSProperties> = {
+  critical: { borderLeftColor: "#FF4D67", background: "rgba(255,77,103,0.08)", border: "1px solid rgba(255,77,103,0.20)", borderLeft: "4px solid #FF4D67" },
+  high:     { borderLeftColor: "#FB923C", background: "rgba(251,146,60,0.08)",  border: "1px solid rgba(251,146,60,0.20)", borderLeft: "4px solid #FB923C" },
+  medium:   { borderLeftColor: "#FBBF24", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.18)", borderLeft: "4px solid #FBBF24" },
+};
 const FIND_SEVERITY_LABELS = {
-  critical: { icon: "🔴", label: "Critical", cls: "border-red-400 bg-status-threat/10" },
-  high: { icon: "🟠", label: "High", cls: "border-orange-400 bg-status-warning/10" },
-  medium: { icon: "🟡", label: "Medium", cls: "border-amber-400 bg-amber-50" },
+  critical: { icon: "🔴", label: "Critical" },
+  high:     { icon: "🟠", label: "High" },
+  medium:   { icon: "🟡", label: "Medium" },
 };
 
 function KeyFindingsSection({ findings }: { findings: KeyFinding[] }) {
@@ -392,7 +413,10 @@ function KeyFindingsSection({ findings }: { findings: KeyFinding[] }) {
       title="Key Findings"
       defaultOpen={true}
       badge={
-        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-bold"
+          style={{ background: "rgba(255,77,103,0.15)", color: "#FF7090", border: "1px solid rgba(255,77,103,0.30)" }}
+        >
           {findings.length}
         </span>
       }
@@ -401,19 +425,19 @@ function KeyFindingsSection({ findings }: { findings: KeyFinding[] }) {
         {findings.map((f, i) => {
           const meta = FIND_SEVERITY_LABELS[f.severity];
           return (
-            <div key={i} className={`rounded-lg border-l-4 p-3 ${meta.cls}`}>
+            <div key={i} className="rounded-lg p-3" style={FIND_SEVERITY_STYLES[f.severity]}>
               <div className="flex items-center gap-2 mb-1">
                 <span aria-hidden="true">{meta.icon}</span>
-                <span className="text-xs font-bold uppercase tracking-wide text-text-muted">
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "rgba(229,226,227,0.70)" }}>
                   {meta.label} · {f.category === "dynamic" ? "Runtime" : f.category === "network" ? "Network" : "Static"}
                 </span>
               </div>
-              <p className="text-sm font-semibold text-text-bright">
-                <span className="text-text-muted font-normal">Observed: </span>
+              <p className="text-sm font-semibold" style={{ color: "#e5e2e3" }}>
+                <span className="font-normal" style={{ color: "#9A9DA3" }}>Observed: </span>
                 {f.evidence}
               </p>
-              <p className="mt-1 text-sm text-text">
-                <span className="font-semibold">Why it matters: </span>
+              <p className="mt-1 text-sm" style={{ color: "#c6c5d8" }}>
+                <span className="font-semibold" style={{ color: "#e5e2e3" }}>Why it matters: </span>
                 {f.whyItMatters}
               </p>
             </div>
@@ -724,45 +748,48 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
       <div className="space-y-4">
         {/* Provenance banner — states plainly whether this is runtime evidence. */}
         <div
-          className={`rounded-lg border p-3 text-xs ${
+          className="rounded-lg p-3 text-xs"
+          style={
             prov.tone === "green"
-              ? "border-status-success/20 bg-status-success/10 text-green-900"
+              ? { background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.25)", color: "#86EFAC" }
               : prov.tone === "yellow"
-                ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-border bg-background-surface text-text"
-          }`}
+                ? { background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)", color: "#FDE68A" }
+                : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#c6c5d8" }
+          }
         >
-          <p className="font-semibold">Evidence source: {prov.label}</p>
+          <p className="font-semibold" style={{ color: prov.tone === "green" ? "#4ADE80" : prov.tone === "yellow" ? "#FBBF24" : "#e5e2e3" }}>Evidence source: {prov.label}</p>
           <p className="mt-1">{prov.summary}</p>
           <p className="mt-1 text-[11px] opacity-80">{prov.containmentLabel}.</p>
         </div>
         {/* Behaviour flags */}
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <h3 className="mb-2 text-[9px] font-mono uppercase tracking-[0.2em]" style={{ color: "rgba(154,157,163,0.70)" }}>
             Observed Behaviour Flags
           </h3>
           <div className="space-y-2">
             {behaviourItems.map((item) => (
               <div
                 key={item.key}
-                className={`rounded-lg border p-3 ${
+                className="rounded-lg p-3"
+                style={
                   item.detected
-                    ? "border-status-warning/20 bg-status-warning/10"
-                    : "border-border bg-background-surface"
-                }`}
+                    ? { background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.2)" }
+                    : { background: "#1a1b1e", border: "1px solid rgba(255,255,255,0.08)" }
+                }
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span aria-label={item.detected ? "Detected" : "Not detected"}>
                       {item.detected ? "🟠" : "✅"}
                     </span>
-                    <span className="text-sm font-semibold text-text-bright">{item.label}</span>
+                    <span className="text-sm font-semibold" style={{ color: "#e5e2e3" }}>{item.label}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      className="rounded-full px-2 py-0.5 text-xs font-medium"
+                      style={
                         item.detected
-                          ? "bg-orange-100 text-status-warning"
-                          : "bg-green-100 text-status-success"
-                      }`}
+                          ? { background: "rgba(251,146,60,0.15)", color: "#FDBA74", border: "1px solid rgba(251,146,60,0.25)" }
+                          : { background: "rgba(74,222,128,0.15)", color: "#86EFAC", border: "1px solid rgba(74,222,128,0.25)" }
+                      }
                     >
                       {item.detected ? "Detected" : "Not Detected"}
                     </span>
@@ -770,12 +797,12 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
                 </div>
                 {item.detected && (
                   <div className="mt-2 ml-6 space-y-1">
-                    <p className="text-xs text-text">
-                      <span className="font-semibold">{prov.evidenceLabel}: </span>
+                    <p className="text-xs" style={{ color: "#c6c5d8" }}>
+                      <span className="font-semibold" style={{ color: "#e5e2e3" }}>{prov.evidenceLabel}: </span>
                       {item.desc}
                     </p>
-                    <p className="text-xs text-text-muted">
-                      <span className="font-semibold">Why it matters: </span>
+                    <p className="text-xs" style={{ color: "#9A9DA3" }}>
+                      <span className="font-semibold" style={{ color: "#e5e2e3" }}>Why it matters: </span>
                       {item.matter}
                     </p>
                   </div>
@@ -878,101 +905,30 @@ function RuntimeBehaviourSection({ detail }: { detail: SubmissionDetail }) {
 // ── 5. Threat Intelligence ────────────────────────────────────────────────
 function ThreatIntelligenceSection({
   detail,
-  virustotal,
 }: {
   detail: SubmissionDetail;
   virustotal?: VirusTotalResult | null;
 }) {
-  const vt = virustotal;
-
   return (
     <AccordionSection id="section-threat-intel" title="Threat Intelligence" defaultOpen={false}>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* VirusTotal */}
-        <div className="rounded-lg border border-border p-4">
-          <h3 className="mb-3 text-sm font-semibold text-text-bright">VirusTotal</h3>
-          {!vt ? (
-            <p className="text-sm text-text-muted">VirusTotal results are loading or unavailable.</p>
-          ) : vt.status === "not_configured" ? (
-            <p className="text-sm text-text-muted">
-              ⚪ VirusTotal was not configured for this deployment. No results available.
+      {/* Campaign Cluster — full width */}
+      <div className="rounded-lg border border-border p-4">
+        <h3 className="mb-3 text-sm font-semibold text-text-bright">Campaign Cluster</h3>
+        {detail.cluster ? (
+          <div className="space-y-2">
+            <p className="text-sm text-text">
+              This submission has been associated with cluster:{" "}
+              <span className="font-semibold text-text-bright">{detail.cluster.cluster_name}</span>
             </p>
-          ) : vt.status === "not_found" ? (
-            <p className="text-sm text-text-muted">
-              ⚪ This file hash was not found in VirusTotal's database. It may be a novel or unreported sample.
+            <p className="text-xs text-text-muted">
+              Cluster analysis groups submissions with similar characteristics to identify potential campaign patterns. This is a similarity association, not confirmation of a specific threat.
             </p>
-          ) : vt.status === "error" ? (
-            <p className="text-sm text-amber-700">
-              ⚠ VirusTotal lookup encountered an error. Results are unavailable.
-            </p>
-          ) : vt.status === "ok" ? (
-            <div className="space-y-3">
-              <p className="text-sm text-text">
-                <span className="font-semibold text-text-bright">
-                  {(vt.malicious ?? 0) + (vt.suspicious ?? 0)}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold">
-                  {(vt.malicious ?? 0) + (vt.suspicious ?? 0) + (vt.harmless ?? 0) + (vt.undetected ?? 0)}
-                </span>{" "}
-                engines flagged this sample.
-              </p>
-              <div className="space-y-1.5">
-                {[
-                  { label: "Malicious", count: vt.malicious ?? 0, color: "bg-red-500" },
-                  { label: "Suspicious", count: vt.suspicious ?? 0, color: "bg-amber-500" },
-                  { label: "Harmless", count: vt.harmless ?? 0, color: "bg-green-500" },
-                  { label: "Undetected", count: vt.undetected ?? 0, color: "bg-gray-300" },
-                ].map(({ label, count, color }) => {
-                  const total = Math.max(
-                    1,
-                    (vt.malicious ?? 0) + (vt.suspicious ?? 0) + (vt.harmless ?? 0) + (vt.undetected ?? 0)
-                  );
-                  const pct = Math.round((count / total) * 100);
-                  return (
-                    <div key={label} className="flex items-center gap-2 text-xs">
-                      <span className="w-20 text-text-muted">{label}</span>
-                      <div className="flex-1 rounded-full bg-background-surface h-2">
-                        <div
-                          className={`h-2 rounded-full ${color}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="w-6 text-right text-text-bright font-medium">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              {vt.meaningful_name && (
-                <p className="text-xs text-text-muted mt-2">
-                  Identified as: <span className="font-semibold">{vt.meaningful_name}</span>
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-text-muted">Status: {vt.status}</p>
-          )}
-        </div>
-
-        {/* Campaign Cluster */}
-        <div className="rounded-lg border border-border p-4">
-          <h3 className="mb-3 text-sm font-semibold text-text-bright">Campaign Cluster</h3>
-          {detail.cluster ? (
-            <div className="space-y-2">
-              <p className="text-sm text-text">
-                This submission has been associated with cluster:{" "}
-                <span className="font-semibold text-text-bright">{detail.cluster.cluster_name}</span>
-              </p>
-              <p className="text-xs text-text-muted">
-                Cluster analysis groups submissions with similar characteristics to identify potential campaign patterns. This is a similarity association, not confirmation of a specific threat.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-text-muted">
-              ⚪ No cluster association found. This submission was not assigned to any known campaign cluster.
-            </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">
+            ⚪ No cluster association found. This submission was not assigned to any known campaign cluster.
+          </p>
+        )}
       </div>
     </AccordionSection>
   );

@@ -21,6 +21,7 @@ x-backend-env: &backend-env
   CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
   # LLM API keys — forwarded from .env
   GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GROQ_API_KEY_2: ${GROQ_API_KEY_2:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
   VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
@@ -37,6 +38,7 @@ x-backend-base: &backend-base
       required: false
   volumes:
     - apk_storage:/tmp/fraudshield-storage
+    - ../backend/app:/app/app
   restart: unless-stopped
 
 services:
@@ -147,7 +149,7 @@ services:
       SANDBOX_MODE: live
       # Use Smart Socket Multiplexing to share the host ADB daemon
       SANDBOX_ADB_SERIAL: "emulator-5554"
-      ADB_SERVER_SOCKET: "tcp:host.docker.internal:5038"
+      ADB_SERVER_SOCKET: "tcp:host.docker.internal:5037"
       ADB_BIN: adb
       # Respect the value set in .env (default was silently 60s because this
       # env block shadowed env_file for this specific variable).

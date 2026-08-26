@@ -9,48 +9,80 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 border-r border-border bg-background flex flex-col no-print shrink-0">
-      <div className="h-16 flex items-center px-6 border-b border-border">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-primary-cyan/10 border border-primary-cyan/30 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-primary-cyan shadow-[0_0_8px_rgba(94,231,255,0.8)]" />
+    <aside
+      className="w-64 flex flex-col no-print shrink-0"
+      style={{
+        background: "rgba(13,14,15,0.80)",
+        backdropFilter: "blur(20px)",
+        borderRight: "1px solid rgba(255,255,255,0.1)",
+      }}
+    >
+      {/* Logo area */}
+      <div className="p-6" style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-[#e5e2e3]"
+            style={{ border: "1px solid rgba(255,255,255,0.2)" }}
+          >
+            F
           </div>
-          <span className="text-sm font-bold tracking-widest text-text-bright uppercase">
+          <span className="font-bold tracking-tight text-[#e5e2e3]" style={{ fontFamily: "SF Pro Display, system-ui, sans-serif" }}>
             FraudShield
-            <span className="text-primary-blue ml-1">AI</span>
+            <span className="text-[#bec2ff] ml-1">AI</span>
           </span>
         </div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
-        <div className="px-3 mb-2 text-xs font-semibold text-text-muted uppercase tracking-widest">
+
+      {/* Nav section */}
+      <div className="flex-1 overflow-y-auto py-4 px-0">
+        {/* Section label */}
+        <div
+          className="px-3 mb-2 font-sans uppercase tracking-[0.2em] text-[#9A9DA3]/60 pb-2"
+          style={{ fontSize: "9px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+        >
           Analysis
         </div>
-        {navItems.map((item) => {
-          const isActive = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                isActive 
-                  ? "bg-primary-blue/10 text-primary-cyan border border-primary-blue/20" 
-                  : "text-text hover:bg-background-elevated hover:text-text-bright border border-transparent"
-              }`}
-            >
-              <svg className={`w-4 h-4 ${isActive ? 'text-primary-cyan' : 'text-text-muted'}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                {item.svg}
-              </svg>
-              {item.label}
-            </Link>
-          );
-        })}
+
+        <div className="space-y-0.5 px-0">
+          {navItems.map((item) => {
+            const isActive = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex items-center gap-3 px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? "bg-white/5 border-l-2 border-[#5E6BFF] text-[#bec2ff]"
+                    : "text-[#9A9DA3] hover:bg-white/5 hover:text-[#e5e2e3] border-l-2 border-transparent"
+                }`}
+                style={{ minHeight: "40px" }}
+              >
+                <svg
+                  className={`w-4 h-4 shrink-0 ${isActive ? "text-[#bec2ff]" : "text-[#9A9DA3]"}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                >
+                  {item.svg}
+                </svg>
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
-      
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-background-elevated/50 border border-border">
-          <div className="w-2 h-2 rounded-full bg-status-success animate-pulse" />
-          <span className="text-xs font-medium text-text-muted font-mono uppercase">System Online</span>
+
+      {/* System status bottom */}
+      <div className="p-4" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div
+            className="w-1.5 h-1.5 rounded-full bg-[#50d8e9]"
+            style={{ boxShadow: "0 0 8px rgba(80,216,233,0.5)" }}
+          />
+          <span className="font-sans text-[#9A9DA3] tracking-widest uppercase" style={{ fontSize: "10px" }}>
+            System Online
+          </span>
         </div>
       </div>
     </aside>

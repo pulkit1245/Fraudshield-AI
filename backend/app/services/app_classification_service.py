@@ -45,7 +45,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.llm.gemini_client import GeminiClient
+from app.core.config import settings
+from app.llm.groq_client import GroqClient
 from app.llm.prompts.classification_prompt import (
     CLASSIFICATION_SYSTEM_PROMPT,
     build_classification_prompt,
@@ -186,9 +187,9 @@ class AppClassificationService:
     # Maximum retries for the LLM call before falling back to heuristics.
     _LLM_MAX_RETRIES = 2
 
-    def __init__(self, db: Session, llm: GeminiClient | None = None) -> None:
+    def __init__(self, db: Session, llm: GroqClient | None = None) -> None:
         self.db = db
-        self.llm = llm or GeminiClient()
+        self.llm = llm or GroqClient(api_key=settings.GROQ_API_KEY_2)
 
     # ── Public interface ─────────────────────────────────────────────────
     def classify(

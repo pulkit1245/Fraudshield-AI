@@ -71,7 +71,7 @@ services:
       - key: STORAGE_ENDPOINT_URL
         sync: false
       - key: STORAGE_REGION
-        value: us-west-004
+        value: us-east-005
       # LLM Keys
       - key: GROQ_API_KEY
         sync: false
@@ -139,7 +139,7 @@ services:
       - key: STORAGE_ENDPOINT_URL
         sync: false
       - key: STORAGE_REGION
-        value: us-west-004
+        value: us-east-005
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_API_KEY_2
@@ -189,7 +189,7 @@ services:
       - key: STORAGE_ENDPOINT_URL
         sync: false
       - key: STORAGE_REGION
-        value: us-west-004
+        value: us-east-005
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_API_KEY_2

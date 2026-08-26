@@ -53,6 +53,7 @@ class Settings(BaseSettings):
 
     # ── External services ───────────────────────────────────────────
     GROQ_API_KEY: str = Field(default="")          # Member B — primary LLM
+    GROQ_API_KEY_2: str = Field(default="")        # Member B — categorization
     GEMINI_API_KEY: str = Field(default="")        # Member B — fallback
     CLAUDE_API_KEY: str = Field(default="")        # Member B — legacy
     VIRUSTOTAL_API_KEY: str = Field(default="")    # Member C
